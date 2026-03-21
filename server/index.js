@@ -31,8 +31,20 @@ const start = async () => {
     }),
   );
 
-  app.listen(serverConfig.port, () => {
+  const server = app.listen(serverConfig.port, () => {
     console.log(`EdgeOps gateway cache API listening on http://localhost:${serverConfig.port}`);
+  });
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(
+        `Port ${serverConfig.port} is already in use. Check your .env value for EDGEOPS_PORT or stop the existing process.`,
+      );
+      process.exit(1);
+    }
+
+    console.error(error);
+    process.exit(1);
   });
 };
 

@@ -40,6 +40,8 @@ If you also want the local gateway cache backend running, start it in a second t
 npm run server
 ```
 
+The backend automatically reads `.env` for `EDGEOPS_PORT`, `EDGEOPS_DB_PATH`, and `EDGEOPS_SECRET`.
+
 Then run the frontend dev server:
 
 ```bash

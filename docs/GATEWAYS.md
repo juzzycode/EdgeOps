@@ -134,6 +134,8 @@ Start the backend:
 npm run server
 ```
 
+The server automatically loads values from `.env` in the project root.
+
 ## Production Recommendations
 
 - Replace local key storage with a real secret manager
