@@ -5,31 +5,38 @@ import { createGatewayConfigService } from './lib/gateway-config-service.js';
 import { createGatewayRepository } from './lib/gateway-repository.js';
 import { createGatewayRouter } from './routes/gateways.js';
 
-const app = express();
-const db = createDatabase(serverConfig.dbPath);
-const repository = createGatewayRepository({
-  db,
-  secret: serverConfig.secret,
-});
-const gatewayConfigService = createGatewayConfigService({ repository });
-
-app.use(express.json());
-
-app.get('/api/health', (_request, response) => {
-  response.json({
-    ok: true,
-    dbPath: serverConfig.dbPath,
+const start = async () => {
+  const app = express();
+  const db = await createDatabase(serverConfig.dbPath);
+  const repository = createGatewayRepository({
+    db,
+    secret: serverConfig.secret,
   });
-});
+  const gatewayConfigService = createGatewayConfigService({ repository });
 
-app.use(
-  '/api/gateways',
-  createGatewayRouter({
-    repository,
-    gatewayConfigService,
-  }),
-);
+  app.use(express.json());
 
-app.listen(serverConfig.port, () => {
-  console.log(`EdgeOps gateway cache API listening on http://localhost:${serverConfig.port}`);
+  app.get('/api/health', (_request, response) => {
+    response.json({
+      ok: true,
+      dbPath: serverConfig.dbPath,
+    });
+  });
+
+  app.use(
+    '/api/gateways',
+    createGatewayRouter({
+      repository,
+      gatewayConfigService,
+    }),
+  );
+
+  app.listen(serverConfig.port, () => {
+    console.log(`EdgeOps gateway cache API listening on http://localhost:${serverConfig.port}`);
+  });
+};
+
+start().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });

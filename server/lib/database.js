@@ -1,15 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
 
-export const createDatabase = (dbPath) => {
+export const createDatabase = async (dbPath) => {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-  const db = new DatabaseSync(dbPath);
-  db.exec(`PRAGMA foreign_keys = ON;`);
-  db.exec(`PRAGMA journal_mode = WAL;`);
+  const db = await open({
+    filename: dbPath,
+    driver: sqlite3.Database,
+  });
 
-  db.exec(`
+  await db.exec(`PRAGMA foreign_keys = ON;`);
+  await db.exec(`PRAGMA journal_mode = WAL;`);
+
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS gateways (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

@@ -116,6 +116,12 @@ Optional body:
 
 ## Run
 
+Recommended runtime:
+
+- Node.js 20 or newer
+
+This backend uses the `sqlite` and `sqlite3` packages so it works on Node 20, including environments where `node:sqlite` is not available.
+
 Install dependencies:
 
 ```bash

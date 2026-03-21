@@ -5,18 +5,19 @@ const toConfigHash = (content) => crypto.createHash('sha256').update(content).di
 export const createGatewayConfigService = ({ repository }) => ({
   async syncGatewayConfig(gatewayId, apiKeyId) {
     const gateway = repository.getGateway(gatewayId);
-    if (!gateway) {
+    const resolvedGateway = await gateway;
+    if (!resolvedGateway) {
       throw new Error('Gateway not found');
     }
 
-    const resolvedApiKey = repository.resolveApiKey(gatewayId, apiKeyId);
+    const resolvedApiKey = await repository.resolveApiKey(gatewayId, apiKeyId);
     if (!resolvedApiKey) {
       throw new Error('No API key is available for this gateway');
     }
 
-    const requestUrl = new URL(gateway.config_path, gateway.base_url).toString();
+    const requestUrl = new URL(resolvedGateway.config_path, resolvedGateway.base_url).toString();
     const headers = {
-      [gateway.auth_header]: resolvedApiKey.api_key,
+      [resolvedGateway.auth_header]: resolvedApiKey.api_key,
       Accept: 'application/json, text/plain, */*',
     };
 
@@ -25,7 +26,7 @@ export const createGatewayConfigService = ({ repository }) => ({
       headers,
     });
 
-    repository.markApiKeyUsed(resolvedApiKey.id);
+    await repository.markApiKeyUsed(resolvedApiKey.id);
 
     if (!response.ok) {
       const errorText = await response.text();

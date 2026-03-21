@@ -3,11 +3,11 @@ import express from 'express';
 export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
   const router = express.Router();
 
-  router.get('/', (_request, response) => {
-    response.json({ gateways: repository.listGateways() });
+  router.get('/', async (_request, response) => {
+    response.json({ gateways: await repository.listGateways() });
   });
 
-  router.post('/', (request, response) => {
+  router.post('/', async (request, response) => {
     const { name, baseUrl, vendor, siteName, authHeader, configPath } = request.body ?? {};
 
     if (!name || !baseUrl) {
@@ -15,7 +15,7 @@ export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
       return;
     }
 
-    const gateway = repository.createGateway({
+    const gateway = await repository.createGateway({
       name,
       baseUrl,
       vendor,
@@ -27,14 +27,14 @@ export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
     response.status(201).json({ gateway });
   });
 
-  router.get('/:gatewayId/api-keys', (request, response) => {
+  router.get('/:gatewayId/api-keys', async (request, response) => {
     response.json({
-      apiKeys: repository.listApiKeys(request.params.gatewayId),
+      apiKeys: await repository.listApiKeys(request.params.gatewayId),
     });
   });
 
-  router.post('/:gatewayId/api-keys', (request, response) => {
-    const gateway = repository.getGateway(request.params.gatewayId);
+  router.post('/:gatewayId/api-keys', async (request, response) => {
+    const gateway = await repository.getGateway(request.params.gatewayId);
     if (!gateway) {
       response.status(404).json({ error: 'Gateway not found' });
       return;
@@ -46,7 +46,7 @@ export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
       return;
     }
 
-    const created = repository.createApiKey(request.params.gatewayId, { name, apiKey });
+    const created = await repository.createApiKey(request.params.gatewayId, { name, apiKey });
     response.status(201).json({
       apiKey: {
         id: created.id,
@@ -72,14 +72,14 @@ export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
     }
   });
 
-  router.get('/:gatewayId/config-cache', (request, response) => {
+  router.get('/:gatewayId/config-cache', async (request, response) => {
     response.json({
-      entries: repository.listCachedConfigs(request.params.gatewayId),
+      entries: await repository.listCachedConfigs(request.params.gatewayId),
     });
   });
 
-  router.get('/:gatewayId/config-cache/latest', (request, response) => {
-    const latest = repository.getLatestCachedConfig(request.params.gatewayId);
+  router.get('/:gatewayId/config-cache/latest', async (request, response) => {
+    const latest = await repository.getLatestCachedConfig(request.params.gatewayId);
     if (!latest) {
       response.status(404).json({ error: 'No cached config found for this gateway' });
       return;
