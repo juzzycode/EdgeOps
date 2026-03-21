@@ -1,0 +1,171 @@
+# Features
+
+## Overview
+
+EdgeOps Cloud is designed as an original, modern network operations UI focused on clarity, fast visibility, and clean device workflows for distributed environments.
+
+## Dashboard
+
+The dashboard includes:
+
+- Total sites
+- Total switches
+- Total APs
+- Total clients
+- Device health summary
+- Offline device count
+- Bandwidth usage chart
+- Top sites by client count
+- Recent alerts
+- Firmware compliance snapshot
+- PoE usage summary
+- SSID distribution summary
+- Topology placeholder
+
+## Switch Management
+
+Implemented capabilities:
+
+- Inventory table
+- Search
+- Status filtering
+- Bulk selection UI
+- Export and refresh actions
+- Detail page
+- Summary cards
+- Port map visualization
+- Port status list
+- VLAN and neighbor view
+- Event history
+- Config summary
+- Simulated actions:
+  - reboot
+  - blink LED
+  - sync config
+  - change port description
+  - enable or disable port
+  - assign VLAN profile
+
+## Wireless AP Management
+
+Implemented capabilities:
+
+- AP inventory table
+- Search
+- Bulk selection UI
+- Export and refresh actions
+- Detail page
+- Radio status
+- SSID summary
+- Neighbor AP view
+- Event history
+- Config summary
+- Simulated actions:
+  - reboot AP
+  - blink LED
+  - rename AP
+  - assign profile
+  - enable or disable radio
+
+## Site Management
+
+Implemented capabilities:
+
+- Site card grid
+- Site health and WAN state summary
+- Device count rollups
+- Site detail page
+- Local switch summary
+- Local AP summary
+- Local alerts
+- Map placeholder for future geospatial views
+
+## Clients
+
+Implemented capabilities:
+
+- Wired and wireless client inventory
+- Search by hostname, MAC, IP, and username
+- Client detail drawer
+- Usage and status visibility
+- Historical connection placeholder
+
+## Alerts
+
+Implemented capabilities:
+
+- Alert center view
+- Severity filtering
+- Recent alert list
+- Alert detail drawer
+- Mock alert types including:
+  - device offline
+  - port errors placeholder
+  - PoE overload
+  - AP high channel utilization
+  - rogue AP placeholder
+  - firmware mismatch
+
+## Profiles
+
+Implemented capabilities:
+
+- Device profiles
+- VLAN profiles
+- Port profiles
+- Mock production-style catalog layout for future CRUD expansion
+
+Planned next step:
+
+- Add create, edit, duplicate, assign, and delete flows
+
+## Firmware Lifecycle
+
+Implemented capabilities:
+
+- Compliance summary
+- Current vs target version table
+- Upgrade group view
+- Eligibility indicators
+
+Planned next step:
+
+- Add staged rollout creation and approval workflows
+
+## Settings
+
+Implemented capabilities:
+
+- Role-aware settings summary
+- Security placeholder
+- Automation placeholder
+- Integration notes
+
+## Platform Features
+
+Shared platform features already in place:
+
+- React + TypeScript architecture
+- Tailwind-based design system
+- Zustand UI state
+- React Router navigation
+- Recharts widgets
+- Lucide icons
+- Dark and light theme support
+- Responsive desktop-first layout
+- Mobile navigation support
+- Reusable tables, panels, badges, drawers, and charts
+- Mock live refresh tick
+
+## Future Expansion Areas
+
+- Real backend API integration
+- Authentication and RBAC enforcement
+- Global command palette behavior
+- Live websocket updates
+- Table pagination and server-side filtering
+- Real topology graph
+- Map integration
+- Audit logging
+- Config diffing
+- Firmware rollout orchestration

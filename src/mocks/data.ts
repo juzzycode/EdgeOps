@@ -8,6 +8,7 @@ import type {
   FirmwareStatus,
   PortProfile,
   Site,
+  SwitchPort,
   SwitchDevice,
   VLANProfile,
 } from '@/types/models';
@@ -19,11 +20,11 @@ export const sites: Site[] = [
   { id: 'site-sea', name: 'Seattle Warehouse', address: '301 Elliott Ave W, Seattle, WA', timezone: 'America/Los_Angeles', region: 'West', status: 'offline', wanStatus: 'offline', clientCount: 22, switchCount: 2, apCount: 3 },
 ];
 
-const switchPorts = (prefix: string) =>
+const switchPorts = (prefix: string): SwitchPort[] =>
   Array.from({ length: 12 }).map((_, index) => ({
     id: `${prefix}-port-${index + 1}`,
     portNumber: `${index + 1}`,
-    status: index % 7 === 0 ? 'warning' : index % 5 === 0 ? 'disabled' : index % 4 === 0 ? 'down' : 'up',
+    status: (index % 7 === 0 ? 'warning' : index % 5 === 0 ? 'disabled' : index % 4 === 0 ? 'down' : 'up') as SwitchPort['status'],
     speed: index < 10 ? '1G' : '10G',
     poeWatts: index % 3 === 0 ? 8 + index : 0,
     vlan: index % 2 === 0 ? 'Corp-Data' : 'Voice-Edge',
@@ -62,8 +63,26 @@ export const alerts: Alert[] = [
 ];
 
 export const firmwareStatuses: FirmwareStatus[] = [
-  ...switches.map((device) => ({ id: `fw-${device.id}`, deviceType: 'switch' as const, deviceId: device.id, current: device.firmware, target: device.targetFirmware, compliance: device.firmware === device.targetFirmware ? 'compliant' : device.status === 'offline' ? 'blocked' : 'pending', eligible: device.status !== 'offline', rolloutGroup: device.siteId === 'site-aus' ? 'Wave A' : 'Wave B' })),
-  ...accessPoints.map((device) => ({ id: `fw-${device.id}`, deviceType: 'ap' as const, deviceId: device.id, current: device.firmware, target: device.targetFirmware, compliance: device.firmware === device.targetFirmware ? 'compliant' : device.status === 'offline' ? 'blocked' : 'pending', eligible: device.status !== 'offline', rolloutGroup: device.siteId === 'site-aus' ? 'Wave A' : 'Wave C' })),
+  ...switches.map((device): FirmwareStatus => ({
+    id: `fw-${device.id}`,
+    deviceType: 'switch',
+    deviceId: device.id,
+    current: device.firmware,
+    target: device.targetFirmware,
+    compliance: device.firmware === device.targetFirmware ? 'compliant' : device.status === 'offline' ? 'blocked' : 'pending',
+    eligible: device.status !== 'offline',
+    rolloutGroup: device.siteId === 'site-aus' ? 'Wave A' : 'Wave B',
+  })),
+  ...accessPoints.map((device): FirmwareStatus => ({
+    id: `fw-${device.id}`,
+    deviceType: 'ap',
+    deviceId: device.id,
+    current: device.firmware,
+    target: device.targetFirmware,
+    compliance: device.firmware === device.targetFirmware ? 'compliant' : device.status === 'offline' ? 'blocked' : 'pending',
+    eligible: device.status !== 'offline',
+    rolloutGroup: device.siteId === 'site-aus' ? 'Wave A' : 'Wave C',
+  })),
 ];
 
 export const deviceProfiles: DeviceProfile[] = [
