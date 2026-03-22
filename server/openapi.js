@@ -15,6 +15,7 @@ const examples = {
       switchDetail: '/api/switches/:id',
       accessPoints: '/api/aps',
       accessPointDetail: '/api/aps/:id',
+      clients: '/api/clients',
       gateways: '/api/gateways',
       gatewayApiKeys: '/api/gateways/:gatewayId/api-keys',
       syncConfig: '/api/gateways/:gatewayId/sync-config',
@@ -200,6 +201,30 @@ const examples = {
         health: 'fair',
       },
     ],
+  },
+  managedClient: {
+    id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--client--04:33:c2:66:72:72',
+    name: 'DESKTOP-NEHMJM2',
+    username: 'DESKTOP-NEHMJM2',
+    connectionType: 'wireless',
+    ip: '192.168.60.42',
+    mac: '04:33:c2:66:72:72',
+    network: 'Juzzy-5ghz',
+    connectedDeviceId: '441k-Hallway',
+    connectedDeviceType: 'ap',
+    siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+    usageGb: 0,
+    status: 'active',
+    lastSeen: '2026-03-22T03:14:23.000Z',
+    hostname: 'DESKTOP-NEHMJM2',
+    vendor: 'Intel Corporate',
+    osName: 'Windows',
+    osVersion: '10/11',
+    detectedInterface: 'FortiAP',
+    connectedApName: '441k-Hallway',
+    vlanId: 60,
+    dhcpLeaseStatus: 'leased',
+    connectedAt: '2026-03-22T01:05:19.000Z',
   },
   setupStatus: {
     complete: false,
@@ -546,6 +571,35 @@ const components = {
       },
       example: examples.managedAccessPoint,
     },
+    Client: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        username: { type: 'string' },
+        connectionType: { type: 'string', enum: ['wired', 'wireless'] },
+        ip: { type: 'string' },
+        mac: { type: 'string' },
+        network: { type: 'string' },
+        connectedDeviceId: { type: 'string' },
+        connectedDeviceType: { type: 'string', enum: ['switch', 'ap'] },
+        siteId: { type: 'string' },
+        usageGb: { type: 'number' },
+        status: { type: 'string', enum: ['active', 'idle', 'blocked'] },
+        lastSeen: { type: 'string', format: 'date-time' },
+        hostname: { type: 'string', nullable: true },
+        vendor: { type: 'string', nullable: true },
+        osName: { type: 'string', nullable: true },
+        osVersion: { type: 'string', nullable: true },
+        detectedInterface: { type: 'string', nullable: true },
+        connectedPort: { type: 'string', nullable: true },
+        connectedApName: { type: 'string', nullable: true },
+        vlanId: { type: 'integer', nullable: true },
+        dhcpLeaseStatus: { type: 'string', nullable: true },
+        connectedAt: { type: 'string', format: 'date-time', nullable: true },
+      },
+      example: examples.managedClient,
+    },
     Gateway: {
       type: 'object',
       properties: {
@@ -637,6 +691,8 @@ export const createOpenApiDocument = ({ port }) => ({
     { name: 'Setup', description: 'Startup wizard state and bootstrap configuration' },
     { name: 'Sites', description: 'Site onboarding and live FortiGate summaries' },
     { name: 'Switches', description: 'Managed FortiSwitch inventory sourced from FortiGate' },
+    { name: 'Access Points', description: 'Managed FortiAP inventory sourced from FortiGate' },
+    { name: 'Clients', description: 'Discovered wired and wireless endpoint inventory sourced from FortiGate' },
     { name: 'Gateways', description: 'Gateway inventory and metadata management' },
     { name: 'API Keys', description: 'Gateway API key storage and listing' },
     { name: 'Config Cache', description: 'Gateway config sync and cached config retrieval' },
@@ -1079,6 +1135,44 @@ export const createOpenApiDocument = ({ port }) => ({
                 examples: {
                   default: {
                     value: { error: 'Access point not found' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/clients': {
+      get: {
+        tags: ['Clients'],
+        summary: 'List discovered clients',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Discovered client list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    clients: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Client' },
+                    },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: { clients: [examples.managedClient] },
                   },
                 },
               },

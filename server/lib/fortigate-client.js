@@ -261,6 +261,70 @@ const getCachedWirelessClients = async (site, apiKey) => {
   return payload;
 };
 
+const isInfrastructureDevice = (item) => {
+  const family = String(item.hardware_family || '').toLowerCase();
+  const vendor = String(item.hardware_vendor || '').toLowerCase();
+  const hostname = String(item.hostname || '').toLowerCase();
+  return (
+    family.includes('fortiap') ||
+    family === 'ap' ||
+    hostname.startsWith('441k-') ||
+    hostname.startsWith('432g-') ||
+    hostname.startsWith('443k-') ||
+    (vendor === 'fortinet' && String(item.os_name || '').toLowerCase().includes('fortiap'))
+  );
+};
+
+const mapClientStatus = (item) => {
+  if (!item.is_online) return 'idle';
+  const lastSeen = Number(item.last_seen);
+  if (Number.isFinite(lastSeen) && Date.now() - lastSeen * 1000 > 15 * 60 * 1000) {
+    return 'idle';
+  }
+  return 'active';
+};
+
+const mapConnectionType = (item) => {
+  const detected = String(item.detected_interface || '').toLowerCase();
+  return detected.includes('wired') ? 'wired' : 'wireless';
+};
+
+const mapClientNetwork = (item) => item.fortiap_ssid || (item.fortiswitch_vlan_id ? `VLAN ${item.fortiswitch_vlan_id}` : 'Unknown');
+
+const mapManagedClient = (site, item) => {
+  const mac = String(item.mac || item.master_mac || '').toLowerCase();
+  const connectionType = mapConnectionType(item);
+  const connectedDeviceType = connectionType === 'wired' ? 'switch' : 'ap';
+  const connectedPort = item.fortiswitch_port_name ? String(item.fortiswitch_port_name) : undefined;
+  const connectedApName = item.fortiap_name ? String(item.fortiap_name) : undefined;
+
+  return {
+    id: `${site.id}--client--${mac || item.ipv4_address || item.hostname || 'unknown'}`,
+    name: item.hostname || item.hardware_vendor || item.mac || 'Client',
+    username: item.hostname || item.host_src || 'unidentified',
+    connectionType,
+    ip: item.ipv4_address || '',
+    mac: String(item.mac || ''),
+    network: mapClientNetwork(item),
+    connectedDeviceId: connectedApName || item.fortiswitch_serial || item.fortiswitch_id || 'unknown-device',
+    connectedDeviceType,
+    siteId: site.id,
+    usageGb: 0,
+    status: mapClientStatus(item),
+    lastSeen: maybeIsoFromUnix(item.last_seen) || new Date().toISOString(),
+    hostname: item.hostname || undefined,
+    vendor: item.hardware_vendor || undefined,
+    osName: item.os_name || undefined,
+    osVersion: item.os_version || undefined,
+    detectedInterface: item.detected_interface || undefined,
+    connectedPort,
+    connectedApName,
+    vlanId: parseMaybeNumber(item.fortiswitch_vlan_id) ?? undefined,
+    dhcpLeaseStatus: item.dhcp_lease_status || undefined,
+    connectedAt: maybeIsoFromUnix(item.active_start_time),
+  };
+};
+
 const hasAnyTraffic = (stats) =>
   Boolean(
     stats &&
@@ -775,5 +839,21 @@ export const createFortiGateClient = ({ siteStore }) => ({
       clients.filter((client) => client.wtp_id === item['wtp-id']),
       apNames,
     );
+  },
+
+  async listClientsForSite(site) {
+    if (site.is_demo || !site.fortigate_ip || !site.fortigate_api_key) {
+      return [];
+    }
+
+    const payload = await requestJson(
+      `https://${site.fortigate_ip}/api/v2/monitor/user/device/query`,
+      site.fortigate_api_key,
+    );
+
+    const devices = Array.isArray(payload.results) ? payload.results : [];
+    return devices
+      .filter((item) => !isInfrastructureDevice(item))
+      .map((item) => mapManagedClient(site, item));
   },
 });

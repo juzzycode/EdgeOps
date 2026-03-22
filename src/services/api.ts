@@ -1,5 +1,5 @@
 import { accessPoints, alerts, bandwidthUsage, clients, deviceProfiles, eventLogs, firmwareStatuses, portProfiles, switches as demoSwitches, vlanProfiles } from '@/mocks/data';
-import type { AccessPoint, Site, SwitchDevice } from '@/types/models';
+import type { AccessPoint, Client, Site, SwitchDevice } from '@/types/models';
 
 const delay = async <T,>(data: T, timeout = 280) => new Promise<T>((resolve) => setTimeout(() => resolve(data), timeout));
 const resolveApiBaseUrl = () => {
@@ -56,7 +56,8 @@ export const api = {
     const sites = await jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites).catch(() => []);
     const switches = await jsonRequest<{ switches: SwitchDevice[] }>('/api/switches').then((payload) => payload.switches).catch(() => demoSwitches);
     const liveAccessPoints = await jsonRequest<{ accessPoints: AccessPoint[] }>('/api/aps').then((payload) => payload.accessPoints).catch(() => accessPoints);
-    return delay({ sites, switches, accessPoints: liveAccessPoints, clients, alerts, firmwareStatuses, bandwidthUsage });
+    const liveClients = await jsonRequest<{ clients: Client[] }>('/api/clients').then((payload) => payload.clients).catch(() => clients);
+    return delay({ sites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts, firmwareStatuses, bandwidthUsage });
   },
   getSites: async () => jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites),
   getSiteById: async (id: string) => jsonRequest<{ site: Site }>(`/api/sites/${id}`).then((payload) => payload.site),
@@ -83,7 +84,10 @@ export const api = {
     ).then((payload) => payload.accessPoints),
   getApById: async (id: string) =>
     jsonRequest<{ accessPoint: AccessPoint }>(`/api/aps/${encodeURIComponent(id)}`).then((payload) => payload.accessPoint),
-  getClients: async () => delay(clients),
+  getClients: async (siteId?: string | 'all') =>
+    jsonRequest<{ clients: Client[] }>(
+      siteId && siteId !== 'all' ? `/api/clients?siteId=${encodeURIComponent(siteId)}` : '/api/clients',
+    ).then((payload) => payload.clients),
   getAlerts: async () => delay(alerts),
   getFirmwareStatuses: async () => delay(firmwareStatuses),
   getProfiles: async () => delay({ deviceProfiles, vlanProfiles, portProfiles }),

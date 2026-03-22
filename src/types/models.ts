@@ -157,6 +157,16 @@ export interface Client {
   usageGb: number;
   status: 'active' | 'idle' | 'blocked';
   lastSeen: string;
+  hostname?: string;
+  vendor?: string;
+  osName?: string;
+  osVersion?: string;
+  detectedInterface?: string;
+  connectedPort?: string;
+  connectedApName?: string;
+  vlanId?: number;
+  dhcpLeaseStatus?: string;
+  connectedAt?: string;
 }
 
 export interface Alert {
