@@ -9,6 +9,8 @@ Site summaries now cache a `ping` probe as well, so the UI can show average late
 Live sites now also maintain a per-site FortiGate config archive with one daily snapshot, downloadable config files, and diffs between archived days.
 That archive is controlled on each site record with a dedicated enabled or disabled setting.
 
+For the operator-facing site workflow, role model, and FortiGate API key guidance, also see `docs/SITES.md`.
+
 ## Storage Model
 
 SQLite tables:
@@ -156,6 +158,22 @@ Notes:
 - The generated shorthand site id stays stable after creation even if you rename the site later.
 - `fortigateIp` can be either a plain host/IP or `host:port` for non-default HTTPS ports.
 - `adminUsername` and `adminPassword` are currently stored only as optional future SSH/CLI credentials. They are not used by the current FortiGate REST polling flow.
+- the backend host needs ICMP reachability to the FortiGate management address if you want latency and packet-loss fields populated from the cached ping probe
+- normal inventory polling can still work even if ICMP is blocked, but WAN latency health will be limited
+
+### FortiGate API Key Notes
+
+For site-backed FortiGate monitoring:
+
+- read-only FortiGate API admins are usually enough for site summary, switch inventory, AP inventory, alerts, topology, and clients
+- config archive can require broader FortiGate permissions than read-only monitoring
+- a site can therefore appear healthy for inventory polling while still showing `FortiGate config backup failed with HTTP 403` for daily archive
+
+Recommended practice:
+
+- use a dedicated FortiGate REST API admin per site
+- choose the smallest FortiGate permission set that supports the features you want on that site
+- disable config archive on sites where you intentionally want monitoring only
 
 ### Setup Compatibility
 

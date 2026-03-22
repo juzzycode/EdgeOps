@@ -92,6 +92,13 @@ npm run build
 - `/settings`
 - `/login`
 
+## Additional Docs
+
+- `docs/QUICKSTART.md`
+- `docs/SITES.md`
+- `docs/GATEWAYS.md`
+- `docs/FEATURES.md`
+
 ## Architecture Overview
 
 - `src/app`
@@ -132,6 +139,7 @@ npm run build
 
 - The UI supports light and dark themes.
 - The UI now has a real login page, session-backed logout, and three enforced roles: `super_admin`, `site_admin`, and `read_only`.
+- Site onboarding, FortiGate API key guidance, role behavior, scope enforcement, ping expectations, and config archive restrictions are documented in `docs/SITES.md`.
 - Site detail now includes a config archive section with daily FortiGate backups, downloadable config files, and diffs between snapshot days.
 - Switch and AP action buttons now go through authenticated backend action endpoints, and every request is written into the shared event history feed.
 - The dashboard and site detail pages now use live topology graphs plus persisted site history instead of the earlier topology placeholder and purely point-in-time telemetry.

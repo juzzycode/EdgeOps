@@ -63,6 +63,8 @@ With the backend running, open `/sites` and use `Add Site` to enter:
 
 The backend generates a shorthand site id like `site-den` automatically and then polls the FortiGate for a live summary.
 
+For the full site onboarding guide, role model, FortiGate API key guidance, ping requirements, and config archive restrictions, see `docs/SITES.md`.
+
 You can later edit or delete a site directly from the Sites page. That is the preferred workflow over editing `data/sites.sqlite` by hand while the API is running.
 
 If you want sample locations instead, use `Load Demo Data` from the Sites page.
@@ -86,6 +88,7 @@ After the first login:
 - use `Settings` to change the password
 - use `Settings` to create `super_admin`, `site_admin`, and `read_only` operators
 - use site assignment on users when you want the backend to scope them to a single site
+- expect `site_admin` and `read_only` users with an assigned site to see only that site in the top selector
 
 ## Daily FortiGate Config Archive
 
@@ -181,4 +184,6 @@ To connect real backend APIs later:
 - Role enforcement is now real for `super_admin`, `site_admin`, and `read_only`.
 - Device actions like reboot and blink LED now go through authenticated backend endpoints with audit history and live target validation.
 - Site detail now includes persisted history and a live topology view sourced from the backend.
+- Ping-based WAN latency requires the backend host to be able to reach the FortiGate management IP over ICMP.
+- Config archive can require broader FortiGate API permissions than normal read-only monitoring.
 - The optional site admin username/password fields are reserved for future SSH or CLI-assisted collection and are not used by the current REST polling flow.

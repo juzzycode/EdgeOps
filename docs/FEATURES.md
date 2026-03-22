@@ -147,6 +147,8 @@ Implemented capabilities:
 - Real password change flow
 - User management for super admins
 - Site-scoped user assignment
+- Forced login redirect when the session is missing
+- Real logout with session destruction
 - Session-backed role display
 - Workspace and telemetry preferences
 - Live platform posture snapshot
@@ -166,6 +168,7 @@ Shared platform features already in place:
 - SQLite-backed operator database
 - Persisted site metric and alert history
 - Shared event/audit history feed for device actions
+- Server-side site scope enforcement for assigned users
 - Dark and light theme support
 - Responsive desktop-first layout
 - Mobile navigation support
