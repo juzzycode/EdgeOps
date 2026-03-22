@@ -35,7 +35,14 @@ export const PortMap = ({
         {port.tags?.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {port.tags.map((tag) => (
-              <span key={tag} className={cn('rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', tag === 'Uplink' ? 'bg-accent/15 text-accent' : '')}>
+              <span
+                key={tag}
+                className={cn(
+                  'rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                  tag === 'Uplink' ? 'bg-accent/15 text-accent' : '',
+                  tag === 'PoE Off' ? 'bg-slate-500/15 text-slate-400 line-through' : '',
+                )}
+              >
                 {tag}
               </span>
             ))}
@@ -46,7 +53,11 @@ export const PortMap = ({
             <div className="rounded-3xl border border-slate-900/10 bg-canvas p-4 text-left shadow-2xl shadow-black/35 dark:border-white/10">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-text">{formatPortLabel(port.portNumber)}</p>
-                {port.isUplink ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent">Uplink</span> : null}
+                {port.isUplink ? (
+                  <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                    Uplink
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1 text-xs text-muted">{port.description || 'No description set'}</p>
               <div className="mt-4 grid gap-2 text-xs text-muted">
@@ -57,8 +68,11 @@ export const PortMap = ({
                 <HoverRow label="RX Errors" value={formatCount(port.stats.rxErrors)} />
                 <HoverRow label="CRC Align" value={formatCount(port.stats.crcAlignments)} />
                 <HoverRow label="L3 Packets" value={formatCount(port.stats.l3Packets)} />
-                <HoverRow label="Drops" value={`${formatCount(port.stats.rxDrops)} RX / ${formatCount(port.stats.txDrops)} TX`} />
-                <HoverRow label="PoE" value={`${formatWatts(port.poeWatts)}${port.poeState ? ` • ${port.poeState}` : ''}`} />
+                <HoverRow
+                  label="Drops"
+                  value={`${formatCount(port.stats.rxDrops)} RX / ${formatCount(port.stats.txDrops)} TX`}
+                />
+                <HoverRow label="PoE" value={`${formatWatts(port.poeWatts)}${port.poeState ? ` | ${port.poeState}` : ''}`} />
               </div>
               {port.uplinkReasons?.length ? (
                 <div className="mt-4 rounded-2xl bg-soft px-3 py-2.5 text-[11px] text-muted">
@@ -81,6 +95,7 @@ export const PortMap = ({
 const formatPortLabel = (value: string) => (value.toLowerCase().startsWith('port') ? value : `Port ${value}`);
 
 const formatCount = (value: number) => value.toLocaleString();
+
 const HoverRow = ({ label, value }: { label: string; value: string }) => (
   <div className="flex items-center justify-between gap-4">
     <span>{label}</span>

@@ -584,10 +584,11 @@ const inferTrunk = (port) =>
   (Array.isArray(port['allowed-vlans']) && port['allowed-vlans'].length > 1) ||
   port.bundle === 'enable';
 
-const getPortTags = (port) => {
+const getPortTags = (port, runtimePort = null) => {
   const tags = [];
+  const poeEnabled = inferPoeEnabled(runtimePort, port);
   if (inferTrunk(port)) tags.push('Trunk');
-  if (port['poe-capable'] === 1) tags.push('PoE');
+  if (port['poe-capable'] === 1) tags.push(poeEnabled ? 'PoE' : 'PoE Off');
   if (port['fortilink-port'] === 1) tags.push('FortiLink');
   return tags;
 };
@@ -829,7 +830,7 @@ const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = [], r
           extractStatusField(port, ['isl-peer-device-name', 'fgt-peer-device-name', 'isl-peer-device-sn']) ||
           undefined,
         isTrunk: inferTrunk(port),
-        tags: override ? [...new Set([...getPortTags(port), 'EdgeOps'])] : getPortTags(port),
+        tags: override ? [...new Set([...getPortTags(port, runtimePort), 'EdgeOps'])] : getPortTags(port, runtimePort),
         stats,
         overrideSource: override ? 'edgeops' : 'fortigate',
       };
