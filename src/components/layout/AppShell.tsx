@@ -130,7 +130,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
             ))}
           </div>
 
-          <header className="panel mb-6 p-4">
+          <header className="panel relative z-50 mb-6 overflow-visible p-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-1 flex-wrap items-center gap-3">
                 <div className="flex min-w-[260px] flex-1 items-center gap-3 rounded-2xl border border-border bg-soft px-4 py-3">
