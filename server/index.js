@@ -1,8 +1,10 @@
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { serverConfig } from './config.js';
 import { createDatabase } from './lib/database.js';
 import { createGatewayConfigService } from './lib/gateway-config-service.js';
 import { createGatewayRepository } from './lib/gateway-repository.js';
+import { createOpenApiDocument } from './openapi.js';
 import { createGatewayRouter } from './routes/gateways.js';
 
 const start = async () => {
@@ -13,8 +15,26 @@ const start = async () => {
     secret: serverConfig.secret,
   });
   const gatewayConfigService = createGatewayConfigService({ repository });
+  const openApiDocument = createOpenApiDocument({ port: serverConfig.port });
 
   app.use(express.json());
+
+  app.get('/api', (_request, response) => {
+    response.json({
+      name: 'EdgeOps Gateway Cache API',
+      version: '1.0.0',
+      docs: '/api/docs',
+      openApi: '/api/openapi.json',
+      routes: {
+        health: '/api/health',
+        gateways: '/api/gateways',
+        gatewayApiKeys: '/api/gateways/:gatewayId/api-keys',
+        syncConfig: '/api/gateways/:gatewayId/sync-config',
+        configCache: '/api/gateways/:gatewayId/config-cache',
+        latestConfigCache: '/api/gateways/:gatewayId/config-cache/latest',
+      },
+    });
+  });
 
   app.get('/api/health', (_request, response) => {
     response.json({
@@ -22,6 +42,12 @@ const start = async () => {
       dbPath: serverConfig.dbPath,
     });
   });
+
+  app.get('/api/openapi.json', (_request, response) => {
+    response.json(openApiDocument);
+  });
+
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
   app.use(
     '/api/gateways',

@@ -58,6 +58,18 @@ If `EDGEOPS_SECRET` is not set, keys fall back to local base64 encoding so devel
 
 ## Backend Endpoints
 
+### API Index
+
+`GET /api`
+
+### Interactive API Docs
+
+`GET /api/docs`
+
+### OpenAPI JSON
+
+`GET /api/openapi.json`
+
 ### Health
 
 `GET /api/health`
