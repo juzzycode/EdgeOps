@@ -149,6 +149,12 @@ const parseWatts = (value) => {
   return match ? Number(match[0]) : 0;
 };
 
+const parseInterfaceIp = (value) => {
+  if (typeof value !== 'string') return null;
+  const token = value.trim().split(/\s+/)[0];
+  return token || null;
+};
+
 const maybeIsoFromUnix = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 1_000_000_000) return undefined;
@@ -167,6 +173,26 @@ const inferApModel = (item) => {
   }
 
   return profile || 'FortiAP';
+};
+
+const extractWanIpFromInterfaces = (payload) => {
+  const interfaces = Array.isArray(payload?.results) ? payload.results : [];
+  const candidate =
+    interfaces.find((item) => {
+      const role = String(item?.role || '').toLowerCase();
+      const name = String(item?.name || item?.q_origin_key || '').toLowerCase();
+      const alias = String(item?.alias || '').toLowerCase();
+      return role === 'wan' || name.startsWith('wan') || alias.includes('wan');
+    }) || interfaces[0];
+
+  if (!candidate) return null;
+
+  return (
+    parseInterfaceIp(candidate.ip) ||
+    parseInterfaceIp(candidate['ipv4-address']) ||
+    parseInterfaceIp(candidate['secondary-ip']) ||
+    null
+  );
 };
 
 const toRadioBand = (band) => {
@@ -589,6 +615,20 @@ const mapManagedSwitch = (site, item, statsByPort = {}) => {
 
 const mapManagedAccessPoint = (site, item, clients, neighborNames = []) => {
   const serial = extractStatusField(item, ['wtp-id', 'serial']) || 'unknown-ap';
+  const firmware =
+    extractStatusField(item, [
+      'os-version',
+      'firmware-version',
+      'firmware_version',
+      'version',
+      'image-version',
+      'wtp-version',
+      'firmware-provision-version',
+      'firmware-provision',
+    ]) || 'Managed by FortiGate';
+  const targetFirmware =
+    extractStatusField(item, ['firmware-provision-version', 'firmware-provision', 'staged-image-version']) ||
+    (item['firmware-provision-latest'] === 'disable' ? 'No staged target' : 'Latest staged target');
   const radios = ['radio-1', 'radio-2', 'radio-3', 'radio-4']
     .map((radioKey) => mapApRadio(radioKey, item[radioKey], clients))
     .filter((radio) => radio.status === 'up');
@@ -603,10 +643,8 @@ const mapManagedAccessPoint = (site, item, clients, neighborNames = []) => {
     serial,
     siteId: site.id,
     status,
-    firmware: extractStatusField(item, ['firmware-provision']) || 'Managed by FortiGate',
-    targetFirmware:
-      extractStatusField(item, ['firmware-provision']) ||
-      (item['firmware-provision-latest'] === 'disable' ? 'No staged target' : 'Latest staged target'),
+    firmware,
+    targetFirmware,
     clients: clients.length,
     radios,
     ip: managementIp,
@@ -703,6 +741,7 @@ const normalizeSite = (site, overrides = {}) => ({
   apCount: 0,
   fortigateName: site.fortigate_name || site.name,
   fortigateIp: site.fortigate_ip || '',
+  wanIp: null,
   source: site.is_demo ? 'demo' : 'live',
   fortigateVersion: null,
   fortigateSerial: null,
@@ -747,12 +786,13 @@ export const createFortiGateClient = ({ siteStore }) => ({
     }
 
     try {
-      const [statusResult, addressResult, switchResult, accessPointResult, clientResult] = await Promise.allSettled([
+      const [statusResult, addressResult, switchResult, accessPointResult, clientResult, interfaceResult] = await Promise.allSettled([
         requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/monitor/system/status`, workingSite.fortigate_api_key),
         requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/cmdb/firewall/address?format=name`, workingSite.fortigate_api_key),
         requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/cmdb/switch-controller/managed-switch`, workingSite.fortigate_api_key),
         requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, workingSite.fortigate_api_key),
         requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/monitor/user/device/query`, workingSite.fortigate_api_key),
+        requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/cmdb/system/interface`, workingSite.fortigate_api_key),
       ]);
 
       if (statusResult.status === 'rejected') {
@@ -774,6 +814,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
         clientResult.status === 'fulfilled' && Array.isArray(clientResult.value.results)
           ? clientResult.value.results.filter((item) => !isInfrastructureDevice(item)).length
           : 0;
+      const wanIp = interfaceResult.status === 'fulfilled' ? extractWanIpFromInterfaces(interfaceResult.value) : null;
       const fortigateVersion = extractFromStatusPayload(statusPayload, ['version', 'firmware', 'build', 'major']);
       const fortigateSerial = extractFromStatusPayload(statusPayload, ['serial', 'serial_number', 'serial-no', 'sn']);
       const fortigateName = extractFromStatusPayload(statusPayload, ['hostname', 'name']);
@@ -783,6 +824,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
         status: hasIdentity ? 'healthy' : 'warning',
         wanStatus: latency.packetLoss === 100 ? 'offline' : latency.packetLoss && latency.packetLoss > 0 ? 'degraded' : 'online',
         fortigateName: fortigateName || workingSite.fortigate_name || workingSite.name,
+        wanIp,
         fortigateVersion,
         fortigateSerial,
         clientCount,

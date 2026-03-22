@@ -160,6 +160,7 @@ export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
         deviceType,
         deviceId: device.id,
         deviceName: deviceType === 'switch' ? device.hostname : device.name,
+        serial: device.serial,
         siteId: device.siteId,
         siteName: site?.name ?? device.siteId,
         current,

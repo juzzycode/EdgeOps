@@ -297,6 +297,7 @@ export const SitesPage = () => {
                 <div className="mt-4 space-y-3 rounded-3xl bg-soft p-4 text-sm">
                   <DetailRow label="FortiGate" value={site.fortigateName || 'Not named yet'} />
                   <DetailRow label="IP" value={site.fortigateIp || 'Not configured'} />
+                  <DetailRow label="WAN IP" value={site.wanIp || 'Unavailable'} />
                   <DetailRow label="WAN" value={site.wanStatus} />
                   <DetailRow label="Source" value={site.source ?? 'live'} />
                 </div>

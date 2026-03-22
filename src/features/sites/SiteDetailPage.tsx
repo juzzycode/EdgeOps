@@ -63,6 +63,7 @@ export const SiteDetailPage = () => {
           <div className="space-y-3">
             <DetailRow label="FortiGate Name" value={site.fortigateName || 'Not configured'} />
             <DetailRow label="FortiGate IP" value={site.fortigateIp || 'Not configured'} />
+            <DetailRow label="WAN IP" value={site.wanIp || 'Unavailable'} />
             <DetailRow label="API Reachable" value={site.apiReachable ? 'Yes' : 'No'} />
             <DetailRow label="Address Objects" value={String(site.addressObjectCount ?? 0)} />
           </div>

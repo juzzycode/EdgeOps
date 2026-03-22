@@ -16,6 +16,7 @@ export interface Site {
   apCount: number;
   fortigateName?: string;
   fortigateIp?: string;
+  wanIp?: string | null;
   fortigateVersion?: string | null;
   fortigateSerial?: string | null;
   addressObjectCount?: number;
@@ -194,6 +195,7 @@ export interface FirmwareStatus {
   deviceType: 'switch' | 'ap';
   deviceId: string;
   deviceName?: string;
+  serial?: string;
   siteId?: string;
   siteName?: string;
   current: string;
