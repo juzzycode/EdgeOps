@@ -149,6 +149,9 @@ export const createSiteConfigArchiveService = ({ siteStore }) => {
       if (!site || site.is_demo) {
         throw new Error('Site is not eligible for config archiving');
       }
+      if (!site.config_archive_enabled) {
+        throw new Error('Config archive is disabled for this site');
+      }
 
       const snapshotDate = toSnapshotDate();
       const existing = await siteStore.getSiteConfigSnapshotByDate(siteId, snapshotDate);
@@ -251,7 +254,7 @@ export const createSiteConfigArchiveService = ({ siteStore }) => {
       const run = async () => {
         const sites = await siteStore.listSites();
         for (const site of sites) {
-          if (site.is_demo || !site.fortigate_ip || !site.fortigate_api_key) continue;
+          if (site.is_demo || !site.config_archive_enabled || !site.fortigate_ip || !site.fortigate_api_key) continue;
           try {
             await this.ensureDailySnapshot(site.id);
           } catch (error) {

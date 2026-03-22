@@ -21,6 +21,7 @@ interface SiteFormState {
   fortigateApiKey: string;
   adminUsername: string;
   adminPassword: string;
+  configArchiveEnabled: boolean;
 }
 
 const defaultForm: SiteFormState = {
@@ -33,6 +34,7 @@ const defaultForm: SiteFormState = {
   fortigateApiKey: '',
   adminUsername: '',
   adminPassword: '',
+  configArchiveEnabled: true,
 };
 
 export const SitesPage = () => {
@@ -68,6 +70,10 @@ export const SitesPage = () => {
   }, []);
 
   const handleChange = (field: keyof SiteFormState, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleToggle = (field: keyof SiteFormState, value: boolean) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -114,6 +120,7 @@ export const SitesPage = () => {
       fortigateApiKey: '',
       adminUsername: '',
       adminPassword: '',
+      configArchiveEnabled: site.configArchiveEnabled ?? true,
     });
   };
 
@@ -236,6 +243,20 @@ export const SitesPage = () => {
             <Field label="Admin Password">
               <input className={inputClassName} onChange={(event) => handleChange('adminPassword', event.target.value)} placeholder="Optional local admin reference" type="password" value={form.adminPassword} />
             </Field>
+            <Field className="lg:col-span-2" label="Config Archive">
+              <label className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-soft px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-text">Enable daily FortiGate config archive</p>
+                  <p className="mt-1 text-sm text-muted">When enabled, the backend archives one full config snapshot per day and exposes downloads plus diffs on the site detail page.</p>
+                </div>
+                <input
+                  checked={form.configArchiveEnabled}
+                  className="h-5 w-5 rounded border-border bg-soft text-accent focus:ring-accent"
+                  onChange={(event) => handleToggle('configArchiveEnabled', event.target.checked)}
+                  type="checkbox"
+                />
+              </label>
+            </Field>
             <div className="lg:col-span-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-soft px-4 py-3">
               <p className="text-sm text-muted">
                 A shorthand site id such as <span className="font-semibold text-text">site-den</span> is generated automatically from the site name.
@@ -312,6 +333,7 @@ export const SitesPage = () => {
                   <DetailRow label="IP" value={site.fortigateIp || 'Not configured'} />
                   <DetailRow label="WAN IP" value={site.wanIp || 'Unavailable'} />
                   <DetailRow label="WAN" value={site.wanStatus} />
+                  <DetailRow label="Config Archive" value={site.configArchiveEnabled ? 'Enabled' : 'Disabled'} />
                   <DetailRow label="Source" value={site.source ?? 'live'} />
                 </div>
 
@@ -374,6 +396,20 @@ export const SitesPage = () => {
             </Field>
             <Field label="Admin Password">
               <input className={inputClassName} onChange={(event) => handleChange('adminPassword', event.target.value)} placeholder="Optional future SSH/CLI use" type="password" value={form.adminPassword} />
+            </Field>
+            <Field label="Config Archive">
+              <label className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-soft px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-text">Enable daily FortiGate config archive</p>
+                  <p className="mt-1 text-sm text-muted">Disable this site if you do not want scheduled backups, downloads, or daily diffs.</p>
+                </div>
+                <input
+                  checked={form.configArchiveEnabled}
+                  className="h-5 w-5 rounded border-border bg-soft text-accent focus:ring-accent"
+                  onChange={(event) => handleToggle('configArchiveEnabled', event.target.checked)}
+                  type="checkbox"
+                />
+              </label>
             </Field>
             <div className="rounded-2xl bg-soft px-4 py-3 text-sm text-muted">
               The generated shorthand id stays stable after creation so links and device ids do not churn when you rename a site.

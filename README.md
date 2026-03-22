@@ -118,6 +118,7 @@ npm run build
 - Live firmware compliance now flows through `/api/firmware`, organizing switch and AP versions into rollout-ready groups.
 - Authentication now flows through `/api/auth/*`, with session cookies protecting live inventory routes and `/api/users` handling operator management.
 - Each live site can now archive a full FortiGate configuration once per day, expose downloadable daily snapshots, and render diffs between archived days directly from the site detail view.
+  This archive is controlled per site and can be enabled or disabled from the site create/edit workflow.
 - Expand the FortiGate client in `server/lib/fortigate-client.js` with more endpoints as device inventory moves off mock data.
 - Use `server/index.js` plus the SQLite-backed gateway cache for real firewall or gateway config retrieval.
 - Keep page components unchanged where possible by preserving return shapes from the mock service layer.

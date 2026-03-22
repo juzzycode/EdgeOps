@@ -79,6 +79,7 @@ export interface Site {
   latencyPacketLoss?: number | null;
   latencyCheckedAt?: string | null;
   latencyError?: string | null;
+  configArchiveEnabled?: boolean;
   source?: 'live' | 'demo';
 }
 

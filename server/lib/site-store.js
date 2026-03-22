@@ -44,6 +44,7 @@ export const createSiteStore = ({ db }) => ({
       ['latency_packet_loss', 'ALTER TABLE sites ADD COLUMN latency_packet_loss REAL'],
       ['latency_checked_at', 'ALTER TABLE sites ADD COLUMN latency_checked_at TEXT'],
       ['latency_error', 'ALTER TABLE sites ADD COLUMN latency_error TEXT'],
+      ['config_archive_enabled', 'ALTER TABLE sites ADD COLUMN config_archive_enabled INTEGER NOT NULL DEFAULT 1'],
     ];
 
     for (const [columnName, sql] of migrations) {
@@ -109,6 +110,7 @@ export const createSiteStore = ({ db }) => ({
       fortigate_api_key: input.fortigateApiKey ?? '',
       admin_username: input.adminUsername ?? '',
       admin_password: input.adminPassword ?? '',
+      config_archive_enabled: input.configArchiveEnabled === false ? 0 : 1,
       is_demo: input.isDemo ? 1 : 0,
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -118,9 +120,9 @@ export const createSiteStore = ({ db }) => ({
       `
         INSERT INTO sites (
           id, shorthand_id, name, address, timezone, region, fortigate_name, fortigate_ip,
-          fortigate_api_key, admin_username, admin_password, is_demo, created_at, updated_at
+          fortigate_api_key, admin_username, admin_password, config_archive_enabled, is_demo, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       row.id,
       row.shorthand_id,
@@ -133,6 +135,7 @@ export const createSiteStore = ({ db }) => ({
       row.fortigate_api_key,
       row.admin_username,
       row.admin_password,
+      row.config_archive_enabled,
       row.is_demo,
       row.created_at,
       row.updated_at,
@@ -156,6 +159,7 @@ export const createSiteStore = ({ db }) => ({
       fortigate_api_key: input.fortigateApiKey ?? current.fortigate_api_key,
       admin_username: input.adminUsername ?? current.admin_username,
       admin_password: input.adminPassword ?? current.admin_password,
+      config_archive_enabled: input.configArchiveEnabled !== undefined ? (input.configArchiveEnabled ? 1 : 0) : current.config_archive_enabled,
       updated_at: nowIso(),
     };
 
@@ -163,7 +167,7 @@ export const createSiteStore = ({ db }) => ({
       `
         UPDATE sites
         SET name = ?, address = ?, timezone = ?, region = ?, fortigate_name = ?, fortigate_ip = ?,
-            fortigate_api_key = ?, admin_username = ?, admin_password = ?, updated_at = ?
+            fortigate_api_key = ?, admin_username = ?, admin_password = ?, config_archive_enabled = ?, updated_at = ?
         WHERE id = ?
       `,
       row.name,
@@ -175,6 +179,7 @@ export const createSiteStore = ({ db }) => ({
       row.fortigate_api_key,
       row.admin_username,
       row.admin_password,
+      row.config_archive_enabled,
       row.updated_at,
       id,
     );

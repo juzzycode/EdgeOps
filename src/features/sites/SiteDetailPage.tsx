@@ -145,6 +145,7 @@ export const SiteDetailPage = () => {
             <DetailRow label="FortiGate IP" value={site.fortigateIp || 'Not configured'} />
             <DetailRow label="WAN IP" value={site.wanIp || 'Unavailable'} />
             <DetailRow label="API Reachable" value={site.apiReachable ? 'Yes' : 'No'} />
+            <DetailRow label="Config Archive" value={site.configArchiveEnabled ? 'Enabled' : 'Disabled'} />
             <DetailRow label="Address Objects" value={String(site.addressObjectCount ?? 0)} />
           </div>
         </Panel>
@@ -196,7 +197,7 @@ export const SiteDetailPage = () => {
           action={
             <button
               className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={syncingSnapshot}
+              disabled={syncingSnapshot || !site.configArchiveEnabled}
               onClick={() => void handleSyncSnapshot()}
               type="button"
             >
@@ -205,7 +206,9 @@ export const SiteDetailPage = () => {
             </button>
           }
         >
-          {loadingSnapshots ? (
+          {!site.configArchiveEnabled ? (
+            <ErrorState title="Config archive disabled" description="Enable daily config archiving in the site settings if you want scheduled FortiGate backups, downloads, and day-to-day diffs for this location." />
+          ) : loadingSnapshots ? (
             <LoadingState label="Loading site config archive..." />
           ) : configError ? (
             <ErrorState title="Config archive unavailable" description={configError} />

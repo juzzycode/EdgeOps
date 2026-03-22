@@ -93,6 +93,7 @@ Each live site can now archive the full FortiGate configuration once per day.
 
 How it works:
 
+- each site has its own `Enable daily FortiGate config archive` setting
 - the backend checks for a daily snapshot in the background while it is running
 - successful snapshots are stored per site in the site database
 - failed daily attempts are retried on later scheduler passes until a successful snapshot exists for that date

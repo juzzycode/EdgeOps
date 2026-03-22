@@ -150,6 +150,7 @@ export const api = {
     fortigateApiKey: string;
     adminUsername?: string;
     adminPassword?: string;
+    configArchiveEnabled?: boolean;
   }) => jsonRequest<{ site: Site }>('/api/sites', { method: 'POST', body: JSON.stringify(payload) }).then((payload) => payload.site),
   updateSite: async (id: string, payload: Partial<{
     name: string;
@@ -161,6 +162,7 @@ export const api = {
     fortigateApiKey: string;
     adminUsername: string;
     adminPassword: string;
+    configArchiveEnabled: boolean;
   }>) => jsonRequest<{ site: Site }>(`/api/sites/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) }).then((payload) => payload.site),
   deleteSite: async (id: string) => {
     await jsonRequest<unknown>(`/api/sites/${encodeURIComponent(id)}`, { method: 'DELETE' });

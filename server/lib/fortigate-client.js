@@ -806,6 +806,7 @@ const normalizeSite = (site, overrides = {}) => ({
   fortigateIp: site.fortigate_ip || '',
   wanIp: null,
   source: site.is_demo ? 'demo' : 'live',
+  configArchiveEnabled: site.config_archive_enabled === undefined ? true : Boolean(site.config_archive_enabled),
   fortigateVersion: null,
   fortigateSerial: null,
   addressObjectCount: 0,

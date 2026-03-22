@@ -52,7 +52,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
   });
 
   router.post('/', requireSuperAdmin, async (request, response) => {
-    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword } = request.body ?? {};
+    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword, configArchiveEnabled } = request.body ?? {};
 
     if (!name || !address || !timezone || !region) {
       response.status(400).json({ error: 'name, address, timezone, and region are required' });
@@ -69,6 +69,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
       fortigateApiKey,
       adminUsername,
       adminPassword,
+      configArchiveEnabled,
       isDemo: false,
     });
 
@@ -194,7 +195,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
     if (!ensureSiteAccess(request, response, request.params.id)) {
       return;
     }
-    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword } = request.body ?? {};
+    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword, configArchiveEnabled } = request.body ?? {};
     const existing = await siteStore.getSiteById(request.params.id);
 
     if (!existing) {
@@ -217,6 +218,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
       fortigateApiKey,
       adminUsername,
       adminPassword,
+      configArchiveEnabled,
     });
 
     response.json({ site: await fortiGateClient.summarizeSite(site) });

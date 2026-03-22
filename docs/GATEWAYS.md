@@ -7,6 +7,7 @@ The backend scaffold supports storing firewall or gateway connection metadata, a
 It also includes site onboarding endpoints for storing site metadata and FortiGate connection details.
 Site summaries now cache a `ping` probe as well, so the UI can show average latency, packet loss, and the last ping timestamp alongside FortiGate API reachability.
 Live sites now also maintain a per-site FortiGate config archive with one daily snapshot, downloadable config files, and diffs between archived days.
+That archive is controlled on each site record with a dedicated enabled or disabled setting.
 
 ## Storage Model
 
@@ -56,6 +57,12 @@ For each site config snapshot:
 - Change summary against the previous successful day
 - Error text when the daily pull fails
 - Fetch and update timestamps
+
+Site-level archive behavior:
+
+- enabled sites participate in the daily FortiGate config archive scheduler
+- disabled sites skip scheduled backups and hide manual archive actions in the site detail workflow
+- the setting is available from the site create and edit forms
 
 ## Multiple Gates And Keys
 
