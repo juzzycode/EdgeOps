@@ -40,7 +40,7 @@ export const PortBandwidthChart = ({ ports }: { ports: SwitchPort[] }) => {
                       <div
                         className={cn(
                           'w-2.5 rounded-t-md transition-all',
-                          isDisabled ? 'bg-slate-400/45' : 'bg-accent/85',
+                          isDisabled ? 'bg-slate-400/45' : 'bg-rose-500',
                         )}
                         style={{ height: `${txHeight}px` }}
                         title={`TX ${formatBytes(txValue)}`}
@@ -51,7 +51,7 @@ export const PortBandwidthChart = ({ ports }: { ports: SwitchPort[] }) => {
                   )}
                 </div>
 
-                <div className="pointer-events-none absolute left-1/2 top-0 z-30 hidden w-48 -translate-x-1/2 -translate-y-[calc(100%+0.5rem)] group-hover:block">
+                <div className="pointer-events-none absolute left-1/2 top-0 z-30 hidden w-48 -translate-x-1/2 -translate-y-[calc(100%+0.15rem)] group-hover:block">
                   <div className="rounded-2xl border border-border bg-canvas px-3 py-2 text-xs text-muted shadow-xl">
                     <p className="font-semibold text-text">{formatPortLabel(port.portNumber)}</p>
                     <p className="mt-1">RX: {formatBytes(rxValue)}</p>
@@ -74,7 +74,7 @@ export const PortBandwidthChart = ({ ports }: { ports: SwitchPort[] }) => {
           RX bytes
         </div>
         <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-accent/80" />
+          <span className="h-3 w-3 rounded-full bg-rose-500" />
           TX bytes
         </div>
         <span>Each port is scaled against the busiest total-traffic port on this switch.</span>
