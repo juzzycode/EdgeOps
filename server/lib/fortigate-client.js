@@ -6,10 +6,12 @@ const execFileAsync = promisify(execFile);
 const pingCacheTtlMs = 60_000;
 const switchStatsCacheTtlMs = 60_000;
 const switchStatusCacheTtlMs = 30_000;
+const managedApStatusCacheTtlMs = 30_000;
 const wirelessClientsCacheTtlMs = 30_000;
 const fortiGateRequestTimeoutMs = 5_000;
 const switchStatsCache = new Map();
 const switchStatusCache = new Map();
+const managedApStatusCache = new Map();
 const wirelessClientsCache = new Map();
 
 const parseFortiGateTarget = (value) => {
@@ -414,6 +416,29 @@ const getCachedWirelessClients = async (site, apiKey) => {
   return payload;
 };
 
+const shouldUseCachedManagedApStatus = (entry) =>
+  Boolean(entry) && Date.now() - entry.fetchedAt < managedApStatusCacheTtlMs;
+
+const getCachedManagedApStatus = async (site, apiKey) => {
+  const cacheKey = `${site.id}:managed-ap-status`;
+  const cached = managedApStatusCache.get(cacheKey);
+  if (shouldUseCachedManagedApStatus(cached)) {
+    return cached.payload;
+  }
+
+  const payload = await requestJson(
+    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/wifi/managed_ap`,
+    apiKey,
+  );
+
+  managedApStatusCache.set(cacheKey, {
+    fetchedAt: Date.now(),
+    payload,
+  });
+
+  return payload;
+};
+
 const isInfrastructureDevice = (item) => {
   const family = String(item.hardware_family || '').toLowerCase();
   const vendor = String(item.hardware_vendor || '').toLowerCase();
@@ -780,9 +805,10 @@ const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = [], r
   };
 };
 
-const mapManagedAccessPoint = (site, item, clients, neighborNames = []) => {
+const mapManagedAccessPoint = (site, item, clients, neighborNames = [], runtimeStatus = null) => {
   const serial = extractStatusField(item, ['wtp-id', 'serial']) || 'unknown-ap';
   const firmware =
+    extractStatusField(runtimeStatus, ['os_version', 'version']) ||
     extractStatusField(item, [
       'os-version',
       'firmware-version',
@@ -802,7 +828,11 @@ const mapManagedAccessPoint = (site, item, clients, neighborNames = []) => {
   const radios = configuredRadios.length ? configuredRadios : mapObservedRadiosFromClients(clients);
   const configuredSsids = mapSsidsFromAp(item, clients);
   const ssids = configuredSsids.length ? configuredSsids : mapSsidsFromClients(item, clients);
-  const managementIp = clients[0]?.wtp_ip || clients[0]?.wtp_control_ip || '';
+  const managementIp =
+    extractStatusField(runtimeStatus, ['local_ipv4_addr', 'connecting_from']) ||
+    clients[0]?.wtp_ip ||
+    clients[0]?.wtp_control_ip ||
+    '';
   const status = deriveStatusFromAp(item, clients);
 
   return {
@@ -825,6 +855,7 @@ const mapManagedAccessPoint = (site, item, clients, neighborNames = []) => {
       `Mode: ${extractStatusField(item, ['wtp-mode']) || 'unknown'}`,
       `Region: ${extractStatusField(item, ['region']) || 'unassigned'}`,
       `LED override: ${extractStatusField(item, ['override-led-state']) || 'disable'}`,
+      runtimeStatus?.os_version ? `Running firmware: ${runtimeStatus.os_version}` : 'Live AP runtime firmware is not available from the FortiGate monitor endpoint.',
       'Client counts and management IPs are live from monitor/wifi/client.',
       'Per-radio utilization is estimated from current client load because FortiGate does not expose direct utilization in these endpoints.',
     ],
@@ -1224,13 +1255,18 @@ export const createFortiGateClient = ({ siteStore }) => ({
       return [];
     }
 
-    const [wtpPayload, clientsPayload] = await Promise.all([
+    const [wtpPayload, clientsPayload, managedApStatusPayload] = await Promise.all([
       requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
       getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
+      getCachedManagedApStatus(site, site.fortigate_api_key).catch(() => ({ results: [] })),
     ]);
 
     const accessPoints = Array.isArray(wtpPayload.results) ? wtpPayload.results : [];
     const clients = Array.isArray(clientsPayload.results) ? clientsPayload.results : [];
+    const managedApStatuses = Array.isArray(managedApStatusPayload.results) ? managedApStatusPayload.results : [];
+    const runtimeMap = new Map(
+      managedApStatuses.map((entry) => [extractStatusField(entry, ['wtp_id', 'serial']) || '', entry]),
+    );
     const apNames = accessPoints
       .map((item) => extractStatusField(item, ['name', 'location']))
       .filter(Boolean);
@@ -1241,6 +1277,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
         item,
         clients.filter((client) => client.wtp_id === item['wtp-id']),
         apNames,
+        runtimeMap.get(extractStatusField(item, ['wtp-id', 'serial']) || '') ?? null,
       ),
     );
   },
@@ -1274,13 +1311,15 @@ export const createFortiGateClient = ({ siteStore }) => ({
       return null;
     }
 
-    const [wtpPayload, clientsPayload] = await Promise.all([
+    const [wtpPayload, clientsPayload, managedApStatusPayload] = await Promise.all([
       requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
       getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
+      getCachedManagedApStatus(site, site.fortigate_api_key).catch(() => ({ results: [] })),
     ]);
 
     const accessPoints = Array.isArray(wtpPayload.results) ? wtpPayload.results : [];
     const clients = Array.isArray(clientsPayload.results) ? clientsPayload.results : [];
+    const managedApStatuses = Array.isArray(managedApStatusPayload.results) ? managedApStatusPayload.results : [];
     const item = accessPoints.find(
       (candidate) =>
         buildApId(site.id, extractStatusField(candidate, ['wtp-id', 'serial']) || 'unknown-ap') === accessPointId,
@@ -1291,12 +1330,16 @@ export const createFortiGateClient = ({ siteStore }) => ({
     const apNames = accessPoints
       .map((candidate) => extractStatusField(candidate, ['name', 'location']))
       .filter(Boolean);
+    const serial = extractStatusField(item, ['wtp-id', 'serial']) || 'unknown-ap';
+    const runtimeStatus =
+      managedApStatuses.find((entry) => (extractStatusField(entry, ['wtp_id', 'serial']) || '') === serial) ?? null;
 
     return mapManagedAccessPoint(
       site,
       item,
       clients.filter((client) => client.wtp_id === item['wtp-id']),
       apNames,
+      runtimeStatus,
     );
   },
 
