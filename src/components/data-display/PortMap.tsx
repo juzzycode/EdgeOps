@@ -31,8 +31,8 @@ export const PortMap = ({ ports }: { ports: SwitchPort[] }) => (
           </div>
         ) : null}
         {port.stats ? (
-          <div className="pointer-events-none absolute left-1/2 top-full z-20 hidden w-72 -translate-x-1/2 pt-3 group-hover:block">
-            <div className="rounded-3xl border border-border bg-surface p-4 text-left shadow-2xl shadow-black/30">
+          <div className="pointer-events-none absolute bottom-full left-1/2 z-[80] hidden w-72 -translate-x-1/2 pb-3 group-hover:block">
+            <div className="rounded-3xl border border-slate-900/10 bg-canvas p-4 text-left shadow-2xl shadow-black/35 dark:border-white/10">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-text">{formatPortLabel(port.portNumber)}</p>
                 {port.isUplink ? <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent">Uplink</span> : null}
