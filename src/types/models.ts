@@ -89,6 +89,7 @@ export interface SwitchPort {
   status: 'up' | 'down' | 'disabled' | 'warning';
   speed: string;
   poeWatts: number;
+  poeState?: string;
   vlan: string;
   description: string;
   profileId: string;

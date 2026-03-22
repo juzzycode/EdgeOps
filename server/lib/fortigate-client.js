@@ -618,7 +618,7 @@ const getCachedSwitchStatus = async (site, apiKey) => {
   }
 
   const payload = await requestJson(
-    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/switch-controller/managed-switch/status`,
+    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/switch-controller/managed-switch/status?vdom=root`,
     apiKey,
   );
 
@@ -628,6 +628,19 @@ const getCachedSwitchStatus = async (site, apiKey) => {
   });
 
   return payload;
+};
+
+const mapPoeState = (runtimePort, configPort) => {
+  const runtimePoeEnabled = String(runtimePort?.poe_status || '').toLowerCase();
+  const configPoeEnabled = String(configPort?.['poe-status'] || '').toLowerCase();
+  const portPower = parseMaybeNumber(runtimePort?.port_power) ?? 0;
+  const powerStatus = parseMaybeNumber(runtimePort?.power_status);
+  const poeCapable = Boolean(runtimePort?.poe_capable ?? configPort?.['poe-capable']);
+
+  if (!poeCapable) return 'Not PoE';
+  if (portPower > 0 || powerStatus === 2) return 'Delivering power';
+  if (runtimePoeEnabled === 'enabled' || configPoeEnabled === 'enable') return 'PoE enabled';
+  return 'PoE disabled';
 };
 
 const applyUplinkHeuristics = (ports) => {
@@ -775,6 +788,7 @@ const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = [], r
               : mapPortStatus(port, stats),
         speed: port.speed || 'auto',
         poeWatts: parseMaybeNumber(runtimePort?.port_power) ?? 0,
+        poeState: mapPoeState(runtimePort, port),
         vlan: override?.vlan || normalizeSwitchPortVlanName(port.vlan) || '_default',
         description: override?.description || port.description || portName,
         profileId: port['port-policy'] || port['qos-policy'] || 'default',

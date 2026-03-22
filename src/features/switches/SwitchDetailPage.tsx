@@ -130,7 +130,7 @@ export const SwitchDetailPage = () => {
                   <div><p className="font-medium text-text">{formatPortLabel(port.portNumber)}</p><p className="text-xs text-muted">{port.description}</p></div>
                   <StatusBadge value={port.status === 'up' ? 'healthy' : port.status === 'warning' ? 'warning' : 'inactive'} />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted"><span>{port.vlan}</span><span>{port.poeWatts}W PoE</span></div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted"><span>{port.vlan}</span><span>{formatPoe(port.poeWatts)}{port.poeState ? ` • ${port.poeState}` : ' PoE'}</span></div>
                 <div className="mt-2 flex items-center justify-between text-xs text-muted">
                   <span>RX {formatBytes(port.stats?.rxBytes ?? 0)}</span>
                   <span>TX {formatBytes(port.stats?.txBytes ?? 0)}</span>
@@ -226,6 +226,7 @@ const SummaryItem = ({ label, value }: { label: string; value: ReactNode }) => (
 );
 
 const formatPortLabel = (value: string) => (value.toLowerCase().startsWith('port') ? value : `Port ${value}`);
+const formatPoe = (value: number) => `${value.toFixed(value >= 10 || Number.isInteger(value) ? 0 : 1)}W`;
 
 const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block">

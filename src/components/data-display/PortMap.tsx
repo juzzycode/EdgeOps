@@ -30,7 +30,7 @@ export const PortMap = ({
         <p className="mt-3 truncate text-xs">{port.description}</p>
         <div className="mt-2 flex items-center justify-between text-[11px]">
           <span>{port.vlan}</span>
-          <span>{port.poeWatts}W</span>
+          <span>{formatPoe(port.poeWatts)}</span>
         </div>
         {port.tags?.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -58,6 +58,7 @@ export const PortMap = ({
                 <HoverRow label="CRC Align" value={formatCount(port.stats.crcAlignments)} />
                 <HoverRow label="L3 Packets" value={formatCount(port.stats.l3Packets)} />
                 <HoverRow label="Drops" value={`${formatCount(port.stats.rxDrops)} RX / ${formatCount(port.stats.txDrops)} TX`} />
+                <HoverRow label="PoE" value={`${formatPoe(port.poeWatts)}${port.poeState ? ` • ${port.poeState}` : ''}`} />
               </div>
               {port.uplinkReasons?.length ? (
                 <div className="mt-4 rounded-2xl bg-soft px-3 py-2.5 text-[11px] text-muted">
@@ -80,6 +81,7 @@ export const PortMap = ({
 const formatPortLabel = (value: string) => (value.toLowerCase().startsWith('port') ? value : `Port ${value}`);
 
 const formatCount = (value: number) => value.toLocaleString();
+const formatPoe = (value: number) => `${value.toFixed(value >= 10 || Number.isInteger(value) ? 0 : 1)}W`;
 
 const HoverRow = ({ label, value }: { label: string; value: string }) => (
   <div className="flex items-center justify-between gap-4">
