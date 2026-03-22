@@ -177,7 +177,30 @@ export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
       };
     };
 
+    const fortiGates = sites
+      .filter((site) => site.fortigate_ip || site.fortigate_name || site.fortigate_version || site.fortigate_serial)
+      .map((site) => {
+        const current = String(site.fortigate_version || 'Unknown');
+        const blocked = !site.fortigate_version;
+
+        return {
+          id: `fw-fortigate-${site.id}`,
+          deviceType: 'fortigate',
+          deviceId: site.id,
+          deviceName: site.fortigate_name || site.name,
+          serial: site.fortigate_serial || undefined,
+          siteId: site.id,
+          siteName: site.name,
+          current,
+          target: current,
+          compliance: blocked ? 'blocked' : 'compliant',
+          eligible: false,
+          rolloutGroup: site.region ? `${site.region} Wave` : 'Gateway Wave',
+        };
+      });
+
     return [
+      ...fortiGates,
       ...switches.map((device) => mapFirmwareRow('switch', device)),
       ...accessPoints.map((device) => mapFirmwareRow('ap', device)),
     ].sort((left, right) => left.siteName.localeCompare(right.siteName) || left.deviceType.localeCompare(right.deviceType));

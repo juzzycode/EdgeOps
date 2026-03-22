@@ -264,7 +264,7 @@ export interface Alert {
 
 export interface FirmwareStatus {
   id: string;
-  deviceType: 'switch' | 'ap';
+  deviceType: 'switch' | 'ap' | 'fortigate';
   deviceId: string;
   deviceName?: string;
   serial?: string;

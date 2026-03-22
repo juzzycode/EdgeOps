@@ -68,9 +68,13 @@ export const FirmwarePage = () => {
       header: 'Device',
       render: (item) => (
         <div>
-          <Link className="font-medium text-accent hover:underline" to={item.deviceType === 'switch' ? `/switches/${item.deviceId}` : `/aps/${item.deviceId}`}>
-            {item.deviceName ?? item.deviceId}
-          </Link>
+          {item.deviceType === 'fortigate' ? (
+            <p className="font-medium text-text">{item.deviceName ?? item.deviceId}</p>
+          ) : (
+            <Link className="font-medium text-accent hover:underline" to={item.deviceType === 'switch' ? `/switches/${item.deviceId}` : `/aps/${item.deviceId}`}>
+              {item.deviceName ?? item.deviceId}
+            </Link>
+          )}
           <p className="text-xs uppercase tracking-wide text-muted">{item.deviceType}</p>
           <p className="mt-1 text-xs text-muted">Serial: {item.serial ?? 'Unavailable'}</p>
           <div className="mt-2 flex flex-wrap gap-2">
