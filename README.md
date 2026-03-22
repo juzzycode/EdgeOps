@@ -42,6 +42,7 @@ npm run server
 
 The backend automatically reads `.env` for `EDGEOPS_PORT`, `EDGEOPS_DB_PATH`, and `EDGEOPS_SECRET`.
 Sites are now onboarded from the UI with an Add Site wizard under `/sites`, where you can enter the site metadata plus FortiGate connection details.
+The FortiGate address field accepts either a host/IP like `192.0.2.14` or a host with explicit port like `192.0.2.14:8443`.
 Sites can also be edited or deleted from the Sites UI, which is the preferred way to manage them because the backend keeps the SQLite file in memory while it is running.
 If your frontend cannot reach the backend on the same origin, set `VITE_API_BASE_URL`, for example `VITE_API_BASE_URL=http://192.168.1.10:18787`.
 If you accidentally use `http://localhost:18787` while opening the UI from another device, the frontend now rewrites that to the current browser host automatically.

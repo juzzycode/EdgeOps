@@ -90,7 +90,7 @@ Example create-site body:
   "timezone": "America/Denver",
   "region": "Mountain",
   "fortigateName": "DEN-BRANCH-FGT",
-  "fortigateIp": "192.0.2.14",
+  "fortigateIp": "192.0.2.14:8443",
   "fortigateApiKey": "replace-with-real-fortigate-key",
   "adminUsername": "admin",
   "adminPassword": "replace-if-needed"
@@ -100,6 +100,7 @@ Example create-site body:
 Notes:
 
 - The generated shorthand site id stays stable after creation even if you rename the site later.
+- `fortigateIp` can be either a plain host/IP or `host:port` for non-default HTTPS ports.
 - `adminUsername` and `adminPassword` are currently stored only as optional future SSH/CLI credentials. They are not used by the current FortiGate REST polling flow.
 
 ### Setup Compatibility

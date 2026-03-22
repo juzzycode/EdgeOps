@@ -58,7 +58,7 @@ With the backend running, open `/sites` and use `Add Site` to enter:
 - Timezone
 - Region
 - FortiGate name
-- FortiGate IP
+- FortiGate IP or `host:port`
 - FortiGate API key
 
 The backend generates a shorthand site id like `site-den` automatically and then polls the FortiGate for a live summary.

@@ -10,6 +10,31 @@ const fortiGateRequestTimeoutMs = 5_000;
 const switchStatsCache = new Map();
 const wirelessClientsCache = new Map();
 
+const parseFortiGateTarget = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return { authority: '', host: '' };
+  }
+
+  try {
+    const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    return {
+      authority: parsed.host,
+      host: parsed.hostname,
+    };
+  } catch {
+    return {
+      authority: raw,
+      host: raw.split(':')[0],
+    };
+  }
+};
+
+const fortiGateBaseUrl = (value) => {
+  const target = parseFortiGateTarget(value);
+  return target.authority ? `https://${target.authority}` : '';
+};
+
 const requestJson = (url, apiKey) =>
   new Promise((resolve, reject) => {
     let settled = false;
@@ -264,7 +289,7 @@ const getCachedWirelessClients = async (site, apiKey) => {
   }
 
   const payload = await requestJson(
-    `https://${site.fortigate_ip}/api/v2/monitor/wifi/client`,
+    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/wifi/client`,
     apiKey,
   );
 
@@ -407,7 +432,7 @@ const getCachedSwitchStats = async (site, serial, apiKey) => {
   }
 
   const payload = await requestJson(
-    `https://${site.fortigate_ip}/api/v2/monitor/switch-controller/managed-switch/port-stats?mkey=${encodeURIComponent(serial)}`,
+    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/switch-controller/managed-switch/port-stats?mkey=${encodeURIComponent(serial)}`,
     apiKey,
   );
 
@@ -704,7 +729,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
 
     let workingSite = site;
     if (site.fortigate_ip && shouldRefreshLatency(site)) {
-      workingSite = await siteStore.updateLatencyCache(site.id, await runPing(site.fortigate_ip));
+      workingSite = await siteStore.updateLatencyCache(site.id, await runPing(parseFortiGateTarget(site.fortigate_ip).host));
     }
 
     const latency = toLatencySummary(workingSite);
@@ -719,8 +744,8 @@ export const createFortiGateClient = ({ siteStore }) => ({
 
     try {
       const [statusPayload, addressPayload] = await Promise.all([
-        requestJson(`https://${workingSite.fortigate_ip}/api/v2/monitor/system/status`, workingSite.fortigate_api_key),
-        requestJson(`https://${workingSite.fortigate_ip}/api/v2/cmdb/firewall/address?format=name`, workingSite.fortigate_api_key),
+        requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/monitor/system/status`, workingSite.fortigate_api_key),
+        requestJson(`${fortiGateBaseUrl(workingSite.fortigate_ip)}/api/v2/cmdb/firewall/address?format=name`, workingSite.fortigate_api_key),
       ]);
 
       const addressResults = Array.isArray(addressPayload.results) ? addressPayload.results : [];
@@ -766,7 +791,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
     }
 
     const payload = await requestJson(
-      `https://${site.fortigate_ip}/api/v2/cmdb/switch-controller/managed-switch`,
+      `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/switch-controller/managed-switch`,
       site.fortigate_api_key,
     );
 
@@ -780,7 +805,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
     }
 
     const payload = await requestJson(
-      `https://${site.fortigate_ip}/api/v2/cmdb/switch-controller/managed-switch`,
+      `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/switch-controller/managed-switch`,
       site.fortigate_api_key,
     );
 
@@ -805,7 +830,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
     }
 
     const [wtpPayload, clientsPayload] = await Promise.all([
-      requestJson(`https://${site.fortigate_ip}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
+      requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
       getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
     ]);
 
@@ -831,7 +856,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
     }
 
     const [wtpPayload, clientsPayload] = await Promise.all([
-      requestJson(`https://${site.fortigate_ip}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
+      requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
       getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
     ]);
 
@@ -862,7 +887,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
     }
 
     const payload = await requestJson(
-      `https://${site.fortigate_ip}/api/v2/monitor/user/device/query`,
+      `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/user/device/query`,
       site.fortigate_api_key,
     );
 

@@ -216,7 +216,7 @@ export const SitesPage = () => {
               <input className={inputClassName} onChange={(event) => handleChange('fortigateName', event.target.value)} placeholder="DEN-BRANCH-FGT" value={form.fortigateName} />
             </Field>
             <Field label="FortiGate IP">
-              <input className={inputClassName} onChange={(event) => handleChange('fortigateIp', event.target.value)} placeholder="192.0.2.14" value={form.fortigateIp} />
+              <input className={inputClassName} onChange={(event) => handleChange('fortigateIp', event.target.value)} placeholder="192.0.2.14 or 192.0.2.14:8443" value={form.fortigateIp} />
             </Field>
             <Field label="FortiGate API Key">
               <input className={inputClassName} onChange={(event) => handleChange('fortigateApiKey', event.target.value)} placeholder="Paste the FortiGate REST API key" type="password" value={form.fortigateApiKey} />
@@ -350,7 +350,7 @@ export const SitesPage = () => {
               <input className={inputClassName} onChange={(event) => handleChange('fortigateName', event.target.value)} value={form.fortigateName} />
             </Field>
             <Field label="FortiGate IP">
-              <input className={inputClassName} onChange={(event) => handleChange('fortigateIp', event.target.value)} value={form.fortigateIp} />
+              <input className={inputClassName} onChange={(event) => handleChange('fortigateIp', event.target.value)} placeholder="192.0.2.14 or 192.0.2.14:8443" value={form.fortigateIp} />
             </Field>
             <Field label="FortiGate API Key">
               <input className={inputClassName} onChange={(event) => handleChange('fortigateApiKey', event.target.value)} placeholder="Leave blank to keep the current key" type="password" value={form.fortigateApiKey} />
