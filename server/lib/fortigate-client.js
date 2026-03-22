@@ -645,9 +645,17 @@ const mapSwitchVlanOption = (item) => ({
   interfaceName: String(item?.interface || item?.interface_name || item?.fortilink || '').trim() || null,
 });
 
+const looksLikePortName = (value) => /^port\d+$/i.test(String(value || '').trim());
+
+const isFortiLinkVlanInterface = (item) => {
+  const type = String(item?.type || '').toLowerCase();
+  const parent = String(item?.interface || item?.interface_name || '').toLowerCase();
+  return type === 'vlan' && parent.includes('fortilink');
+};
+
 const dedupeSwitchVlanOptions = (items) =>
   uniqueBy(
-    items.filter((item) => item && item.name),
+    items.filter((item) => item && item.name && !looksLikePortName(item.name)),
     (item) => item.name,
   ).sort((left, right) => {
     const leftId = left.vlanId ?? Number.MAX_SAFE_INTEGER;
@@ -1024,7 +1032,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
 
     const interfaces = Array.isArray(interfacesPayload.results) ? interfacesPayload.results : [];
     const interfaceOptions = interfaces
-      .filter((item) => String(item?.type || '').toLowerCase() === 'vlan' || item?.vlanid !== undefined)
+      .filter((item) => isFortiLinkVlanInterface(item))
       .map(mapSwitchVlanOption);
 
     const switches = Array.isArray(switchPayload.results) ? switchPayload.results : [];
@@ -1034,7 +1042,11 @@ export const createFortiGateClient = ({ siteStore }) => ({
 
     const currentPortVlans = Array.isArray(switchItem?.ports)
       ? switchItem.ports
-          .map((port) => String(port?.vlan || '').trim())
+          .flatMap((port) => [
+            String(port?.vlan || '').trim(),
+            ...(Array.isArray(port?.['untagged-vlans']) ? port['untagged-vlans'].map((entry) => String(entry || '').trim()) : []),
+            ...(Array.isArray(port?.['allowed-vlans']) ? port['allowed-vlans'].map((entry) => String(entry || '').trim()) : []),
+          ])
           .filter(Boolean)
           .map((name) => ({ name, vlanId: null, interfaceName: null }))
       : [];
@@ -1080,18 +1092,38 @@ export const createFortiGateClient = ({ siteStore }) => ({
       };
     }
 
-    const body = {
+    const patchBody = {
+      'port-name': normalizedPortNumber,
+      q_origin_key: normalizedPortNumber,
       vlan,
+      'untagged-vlans': [vlan],
     };
 
-    await requestFortiGate(
-      `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/switch-controller/managed-switch/${encodeURIComponent(serial)}/ports/${encodeURIComponent(normalizedPortNumber)}`,
-      site.fortigate_api_key,
-      {
-        method: 'PUT',
-        body,
-      },
-    );
+    try {
+      await requestFortiGate(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/switch-controller/managed-switch/${encodeURIComponent(serial)}/ports/${encodeURIComponent(normalizedPortNumber)}`,
+        site.fortigate_api_key,
+        {
+          method: 'PATCH',
+          body: patchBody,
+        },
+      );
+    } catch (firstError) {
+      await requestFortiGate(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/switch-controller/managed-switch/${encodeURIComponent(serial)}`,
+        site.fortigate_api_key,
+        {
+          method: 'PATCH',
+          body: {
+            ports: [patchBody],
+          },
+        },
+      ).catch((secondError) => {
+        const firstMessage = firstError instanceof Error ? firstError.message : 'Unknown FortiGate error';
+        const secondMessage = secondError instanceof Error ? secondError.message : 'Unknown FortiGate error';
+        throw new Error(`Unable to update the FortiGate switch port VLAN. Attempt 1 failed: ${firstMessage}. Attempt 2 failed: ${secondMessage}.`);
+      });
+    }
 
     return {
       changed: true,
