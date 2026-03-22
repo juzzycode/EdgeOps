@@ -183,6 +183,15 @@ export const api = {
       siteId && siteId !== 'all' ? `/api/switches?siteId=${encodeURIComponent(siteId)}` : '/api/switches',
     ).then((payload) => payload.switches),
   getSwitchById: async (id: string) => jsonRequest<{ switch: SwitchDevice }>(`/api/switches/${encodeURIComponent(id)}`).then((payload) => payload.switch),
+  saveSwitchPortOverride: async (
+    id: string,
+    portNumber: string,
+    payload: { description: string; vlan: string; enabled: boolean },
+  ) =>
+    jsonRequest<{ action: DeviceActionRecord }>(`/api/switches/${encodeURIComponent(id)}/ports/${encodeURIComponent(portNumber)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }).then((result) => result.action),
   runSwitchAction: async (id: string, action: string, payload?: Record<string, string | boolean>) =>
     jsonRequest<{ action: DeviceActionRecord }>(`/api/switches/${encodeURIComponent(id)}/actions`, {
       method: 'POST',

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { BellRing, Lightbulb, Power, RotateCw, Save } from 'lucide-react';
+import { BellRing, Lightbulb, RotateCw, Save } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ActionButton } from '@/components/common/ActionButton';
@@ -7,11 +7,12 @@ import { ErrorState, LoadingState } from '@/components/common/States';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Panel } from '@/components/common/Panel';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { SideDrawer } from '@/components/drawers/SideDrawer';
 import { PortBandwidthChart } from '@/components/data-display/PortBandwidthChart';
 import { PortMap } from '@/components/data-display/PortMap';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
-import type { EventLog, SwitchDevice } from '@/types/models';
+import type { EventLog, SwitchDevice, SwitchPort } from '@/types/models';
 import { formatBytes, formatRelativeTime } from '@/lib/utils';
 
 export const SwitchDetailPage = () => {
@@ -19,12 +20,20 @@ export const SwitchDetailPage = () => {
   const [device, setDevice] = useState<SwitchDevice | null>();
   const [events, setEvents] = useState<EventLog[]>([]);
   const [message, setMessage] = useState('');
+  const [selectedPort, setSelectedPort] = useState<SwitchPort | null>(null);
+  const [portForm, setPortForm] = useState({ description: '', vlan: '', enabled: true });
+  const [savingPort, setSavingPort] = useState(false);
   const role = useAppStore((state) => state.role);
   const canOperate = role !== 'read_only';
 
+  const refresh = async () => {
+    const [switchRow, eventRows] = await Promise.all([api.getSwitchById(id), api.getEventLogsByTarget(id)]);
+    setDevice(switchRow);
+    setEvents(eventRows);
+  };
+
   useEffect(() => {
-    api.getSwitchById(id).then(setDevice);
-    api.getEventLogsByTarget(id).then(setEvents);
+    void refresh();
   }, [id]);
 
   const poeUsedPercent = useMemo(() => {
@@ -38,7 +47,31 @@ export const SwitchDetailPage = () => {
   const runAction = async (action: string, payload?: Record<string, string | boolean>) => {
     const result = await api.runSwitchAction(device.id, action, payload);
     setMessage(result.message);
-    setEvents(await api.getEventLogsByTarget(id));
+    await refresh();
+  };
+
+  const openPortEditor = (port: SwitchPort) => {
+    setSelectedPort(port);
+    setPortForm({
+      description: port.description,
+      vlan: port.vlan,
+      enabled: port.status !== 'disabled',
+    });
+  };
+
+  const handleSavePort = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedPort) return;
+
+    setSavingPort(true);
+    try {
+      const result = await api.saveSwitchPortOverride(device.id, selectedPort.portNumber, portForm);
+      setMessage(result.message);
+      setSelectedPort(null);
+      await refresh();
+    } finally {
+      setSavingPort(false);
+    }
   };
 
   return (
@@ -68,8 +101,8 @@ export const SwitchDetailPage = () => {
           </div>
         </Panel>
       </div>
-      <Panel title="Port Map" subtitle="Visual summary of port status, VLAN, and PoE draw.">
-        <PortMap ports={device.ports} />
+      <Panel title="Port Map" subtitle="Click a port for a quick edit of description, VLAN, or enabled state.">
+        <PortMap ports={device.ports} onPortSelect={canOperate ? openPortEditor : undefined} />
       </Panel>
       <Panel title="Port Activity Graph" subtitle="RX and TX byte totals for every port, all normalized to the same switch-wide scale.">
         <PortBandwidthChart ports={device.ports} />
@@ -117,13 +150,50 @@ export const SwitchDetailPage = () => {
           </div>
         </Panel>
       </div>
-      <Panel title="Operator Actions" subtitle="These actions are now sent through the authenticated backend, validated against live inventory, and recorded in the event history.">
-        <div className="flex flex-wrap gap-3">
-          <ActionButton onClick={() => runAction('change-port-description', { port: '1', description: 'Reception desk' })} disabled={!canOperate}><Save className="mr-2 h-4 w-4" />Change Port Description</ActionButton>
-          <ActionButton onClick={() => runAction('toggle-port', { port: '4', enabled: false })} disabled={!canOperate}><Power className="mr-2 h-4 w-4" />Disable Port 4</ActionButton>
-          <ActionButton onClick={() => runAction('assign-vlan-profile', { port: '7', profile: 'Voice-Edge' })} disabled={!canOperate}><Save className="mr-2 h-4 w-4" />Assign VLAN Profile</ActionButton>
-        </div>
-      </Panel>
+      <SideDrawer
+        open={Boolean(selectedPort)}
+        title={selectedPort ? `Edit ${formatPortLabel(selectedPort.portNumber)}` : ''}
+        subtitle="Description, VLAN, and enabled state are persisted immediately in EdgeOps and reflected on this switch detail view."
+        onClose={() => setSelectedPort(null)}
+      >
+        {selectedPort ? (
+          <form className="space-y-4" onSubmit={handleSavePort}>
+            <Field label="Description">
+              <input
+                className={inputClassName}
+                onChange={(event) => setPortForm((current) => ({ ...current, description: event.target.value }))}
+                value={portForm.description}
+              />
+            </Field>
+            <Field label="VLAN">
+              <input
+                className={inputClassName}
+                onChange={(event) => setPortForm((current) => ({ ...current, vlan: event.target.value }))}
+                value={portForm.vlan}
+              />
+            </Field>
+            <label className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-soft px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-text">Enabled</p>
+                <p className="mt-1 text-sm text-muted">Disable the port visually in EdgeOps until a direct controller mutation path is finalized.</p>
+              </div>
+              <input
+                checked={portForm.enabled}
+                className="h-5 w-5 rounded border-border bg-soft text-accent focus:ring-accent"
+                onChange={(event) => setPortForm((current) => ({ ...current, enabled: event.target.checked }))}
+                type="checkbox"
+              />
+            </label>
+            <div className="rounded-2xl bg-soft px-4 py-3 text-sm text-muted">
+              FortiGate documentation confirms VLAN settings under the managed-switch port configuration. Per-port description write support was not clearly confirmed through the controller API, so these quick edits are currently saved in EdgeOps instead of being pushed directly to the FortiGate.
+            </div>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70" disabled={savingPort} type="submit">
+              <Save className="h-4 w-4" />
+              {savingPort ? 'Saving...' : 'Save Port'}
+            </button>
+          </form>
+        ) : null}
+      </SideDrawer>
     </div>
   );
 };
@@ -136,3 +206,13 @@ const SummaryItem = ({ label, value }: { label: string; value: ReactNode }) => (
 );
 
 const formatPortLabel = (value: string) => (value.toLowerCase().startsWith('port') ? value : `Port ${value}`);
+
+const Field = ({ label, children }: { label: string; children: ReactNode }) => (
+  <label className="block">
+    <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">{label}</span>
+    {children}
+  </label>
+);
+
+const inputClassName =
+  'focus-ring w-full rounded-2xl border border-border bg-soft px-4 py-3 text-sm text-text placeholder:text-muted';

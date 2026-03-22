@@ -8,10 +8,21 @@ const tone: Record<SwitchPort['status'], string> = {
   warning: 'bg-warning/20 text-warning border-warning/20',
 };
 
-export const PortMap = ({ ports }: { ports: SwitchPort[] }) => (
+export const PortMap = ({
+  ports,
+  onPortSelect,
+}: {
+  ports: SwitchPort[];
+  onPortSelect?: (port: SwitchPort) => void;
+}) => (
   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
     {ports.map((port) => (
-      <div key={port.id} className={cn('group relative rounded-2xl border p-3', tone[port.status])}>
+      <button
+        key={port.id}
+        className={cn('group relative rounded-2xl border p-3 text-left transition hover:border-accent/35', tone[port.status])}
+        onClick={() => onPortSelect?.(port)}
+        type="button"
+      >
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-semibold">{formatPortLabel(port.portNumber)}</span>
           <span className="text-[11px] uppercase">{port.speed}</span>
@@ -61,7 +72,7 @@ export const PortMap = ({ ports }: { ports: SwitchPort[] }) => (
             </div>
           </div>
         ) : null}
-      </div>
+      </button>
     ))}
   </div>
 );

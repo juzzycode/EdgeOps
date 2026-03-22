@@ -604,32 +604,51 @@ const buildSwitchId = (siteId, serial) => `${siteId}--${serial}`;
 const buildApId = (siteId, serial) => `${siteId}--${serial}`;
 const buildRogueApId = (siteId, bssid, ssid) => `${siteId}--rogue--${bssid || ssid || 'unknown'}`;
 
-const mapManagedSwitch = (site, item, statsByPort = {}) => {
+const buildPortOverrideMap = (rows = []) =>
+  new Map(
+    rows.map((row) => [
+      String(row.port_number || ''),
+      {
+        description: row.description_override || null,
+        vlan: row.vlan_override || null,
+        enabled: row.enabled_override === null || row.enabled_override === undefined ? null : Boolean(row.enabled_override),
+        updatedAt: row.updated_at || null,
+        updatedBy: row.updated_by || null,
+      },
+    ]),
+  );
+
+const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = []) => {
   const serial = extractStatusField(item, ['sn', 'serial', 'switch-id']) || 'unknown-switch';
+  const switchId = buildSwitchId(site.id, serial);
   const rawPorts = Array.isArray(item.ports) ? item.ports : [];
+  const portOverrides = buildPortOverrideMap(portOverrideRows);
   const poeBudgetWatts = rawPorts.reduce((total, port) => total + parseWatts(port['poe-max-power']), 0);
   const firmware = extractStatusField(item, ['firmware-provision-version', 'staged-image-version', 'os-version']) || 'Managed by FortiGate';
   const ports = applyUplinkHeuristics(
     rawPorts.map((port) => {
       const portName = port['port-name'] || 'unknown';
       const stats = statsByPort[portName] ? mapPortStats(statsByPort[portName]) : undefined;
+      const override = portOverrides.get(portName);
+      const overrideDisabled = override?.enabled === false;
 
       return {
-        id: `${buildSwitchId(site.id, serial)}-${portName}`,
+        id: `${switchId}-${portName}`,
         portNumber: portName,
-        status: mapPortStatus(port, stats),
+        status: overrideDisabled ? 'disabled' : mapPortStatus(port, stats),
         speed: port.speed || 'auto',
         poeWatts: 0,
-        vlan: port.vlan || '_default',
-        description: port.description || portName,
+        vlan: override?.vlan || port.vlan || '_default',
+        description: override?.description || port.description || portName,
         profileId: port['port-policy'] || port['qos-policy'] || 'default',
         clientCount: 0,
         neighbor:
           extractStatusField(port, ['isl-peer-device-name', 'fgt-peer-device-name', 'isl-peer-device-sn']) ||
           undefined,
         isTrunk: inferTrunk(port),
-        tags: getPortTags(port),
+        tags: override ? [...new Set([...getPortTags(port), 'EdgeOps'])] : getPortTags(port),
         stats,
+        overrideSource: override ? 'edgeops' : 'fortigate',
       };
     }),
   );
@@ -643,7 +662,7 @@ const mapManagedSwitch = (site, item, statsByPort = {}) => {
         : 'down';
 
   return {
-    id: buildSwitchId(site.id, serial),
+    id: switchId,
     hostname:
       extractStatusField(item, ['description', 'switch-device-tag', 'name']) ||
       extractStatusField(item, ['switch-id', 'sn']) ||
@@ -943,8 +962,10 @@ export const createFortiGateClient = ({ siteStore }) => ({
     const statsPayload = await getCachedSwitchStats(site, serial, site.fortigate_api_key).catch(() => null);
     const statsByPort =
       Array.isArray(statsPayload?.results) && statsPayload.results[0]?.ports ? statsPayload.results[0].ports : {};
+    const switchId = buildSwitchId(site.id, serial);
+    const portOverrides = await siteStore.listSwitchPortOverrides(switchId).catch(() => []);
 
-    return mapManagedSwitch(site, item, statsByPort);
+    return mapManagedSwitch(site, item, statsByPort, portOverrides);
   },
 
   async listManagedAccessPointsForSite(site) {

@@ -72,6 +72,23 @@ export const createSiteStore = ({ db }) => ({
 
       CREATE INDEX IF NOT EXISTS idx_site_config_snapshots_site_date
         ON site_config_snapshots(site_id, snapshot_date DESC);
+
+      CREATE TABLE IF NOT EXISTS switch_port_overrides (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        switch_id TEXT NOT NULL,
+        port_number TEXT NOT NULL,
+        description_override TEXT,
+        vlan_override TEXT,
+        enabled_override INTEGER,
+        updated_by TEXT,
+        updated_at TEXT NOT NULL,
+        UNIQUE(switch_id, port_number),
+        FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_switch_port_overrides_switch
+        ON switch_port_overrides(switch_id, port_number);
     `);
   },
 
@@ -319,5 +336,74 @@ export const createSiteStore = ({ db }) => ({
     );
 
     return this.getSiteConfigSnapshot(input.siteId, existing.id);
+  },
+
+  async listSwitchPortOverrides(switchId) {
+    return db.all(
+      `
+        SELECT *
+        FROM switch_port_overrides
+        WHERE switch_id = ?
+        ORDER BY port_number ASC
+      `,
+      switchId,
+    );
+  },
+
+  async upsertSwitchPortOverride({ siteId, switchId, portNumber, description, vlan, enabled, updatedBy }) {
+    const existing = await db.get(
+      `
+        SELECT *
+        FROM switch_port_overrides
+        WHERE switch_id = ? AND port_number = ?
+      `,
+      switchId,
+      portNumber,
+    );
+
+    const updatedAt = nowIso();
+    if (!existing) {
+      await db.run(
+        `
+          INSERT INTO switch_port_overrides (
+            id, site_id, switch_id, port_number, description_override, vlan_override, enabled_override, updated_by, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        makeId('portoverride'),
+        siteId,
+        switchId,
+        portNumber,
+        description ?? null,
+        vlan ?? null,
+        enabled === undefined ? null : enabled ? 1 : 0,
+        updatedBy ?? null,
+        updatedAt,
+      );
+    } else {
+      await db.run(
+        `
+          UPDATE switch_port_overrides
+          SET description_override = ?, vlan_override = ?, enabled_override = ?, updated_by = ?, updated_at = ?
+          WHERE id = ?
+        `,
+        description ?? null,
+        vlan ?? null,
+        enabled === undefined ? null : enabled ? 1 : 0,
+        updatedBy ?? null,
+        updatedAt,
+        existing.id,
+      );
+    }
+
+    return db.get(
+      `
+        SELECT *
+        FROM switch_port_overrides
+        WHERE switch_id = ? AND port_number = ?
+      `,
+      switchId,
+      portNumber,
+    );
   },
 });

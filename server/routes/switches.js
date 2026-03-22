@@ -71,5 +71,29 @@ export const createSwitchesRouter = ({ siteStore, fortiGateClient, deviceActionS
     response.status(201).json({ action: result });
   });
 
+  router.put('/:id/ports/:portNumber', requireOperator, async (request, response) => {
+    const scopedSiteId = request.auth?.user?.siteId ?? null;
+    const siteId = request.params.id.split('--')[0];
+
+    if (scopedSiteId && siteId !== scopedSiteId) {
+      response.status(403).json({ error: 'This account is scoped to a different site' });
+      return;
+    }
+
+    const { description, vlan, enabled } = request.body ?? {};
+    const action = await deviceActionService.updateSwitchPortOverride({
+      switchId: request.params.id,
+      portNumber: request.params.portNumber,
+      payload: {
+        description,
+        vlan,
+        enabled,
+      },
+      actorUsername: request.auth.user.username,
+    });
+
+    response.status(200).json({ action });
+  });
+
   return router;
 };

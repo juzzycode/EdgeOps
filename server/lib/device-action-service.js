@@ -84,4 +84,66 @@ export const createDeviceActionService = ({ siteStore, fortiGateClient, historyS
       });
     }
   },
+
+  async updateSwitchPortOverride({ switchId, portNumber, payload, actorUsername }) {
+    const siteId = extractSiteIdFromTarget(switchId);
+    if (!siteId) {
+      throw new Error('Unable to resolve the site for this port update.');
+    }
+
+    const site = await siteStore.getSiteById(siteId);
+    if (!site) {
+      throw new Error('Site not found for this port update.');
+    }
+
+    const event = await historyStore.createActionEvent({
+      siteId,
+      targetId: switchId,
+      targetType: 'switch',
+      action: 'edit-port',
+      actorUsername,
+      payload: {
+        port: portNumber,
+        ...payload,
+      },
+    });
+
+    try {
+      const device = await fortiGateClient.getManagedSwitchDetailForSite(site, switchId);
+      if (!device) {
+        throw new Error('Switch not found in the live FortiGate inventory.');
+      }
+
+      const port = device.ports.find((candidate) => candidate.portNumber === portNumber);
+      if (!port) {
+        throw new Error('Port not found on the selected switch.');
+      }
+
+      await siteStore.upsertSwitchPortOverride({
+        siteId,
+        switchId,
+        portNumber,
+        description: typeof payload.description === 'string' ? payload.description : port.description,
+        vlan: typeof payload.vlan === 'string' ? payload.vlan : port.vlan,
+        enabled: typeof payload.enabled === 'boolean' ? payload.enabled : port.status !== 'disabled',
+        updatedBy: actorUsername,
+      });
+
+      return historyStore.completeActionEvent(event.id, {
+        status: 'completed',
+        message:
+          'Port settings were saved in EdgeOps immediately. VLAN and enable state are ready for future controller writes; per-port description support was not confirmed in the FortiGate managed-switch API, so no controller write was attempted.',
+        result: {
+          portNumber,
+          persistedIn: 'edgeops',
+        },
+      });
+    } catch (error) {
+      return historyStore.completeActionEvent(event.id, {
+        status: 'failed',
+        message: error instanceof Error ? error.message : 'Unable to save the port update.',
+        result: null,
+      });
+    }
+  },
 });

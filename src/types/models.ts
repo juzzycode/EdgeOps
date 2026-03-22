@@ -99,6 +99,7 @@ export interface SwitchPort {
   tags?: string[];
   uplinkReasons?: string[];
   stats?: SwitchPortStats;
+  overrideSource?: 'fortigate' | 'edgeops';
 }
 
 export interface SwitchPortStats {
