@@ -98,6 +98,7 @@ npm run build
 - `docs/SITES.md`
 - `docs/GATEWAYS.md`
 - `docs/FEATURES.md`
+- `docs/TODO.md`
 
 ## Architecture Overview
 
