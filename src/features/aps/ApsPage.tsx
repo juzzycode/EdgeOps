@@ -8,20 +8,25 @@ import { LoadingState } from '@/components/common/States';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { formatRelativeTime } from '@/lib/utils';
-import { sites } from '@/mocks/data';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
-import type { AccessPoint } from '@/types/models';
+import type { AccessPoint, Site } from '@/types/models';
 
 export const ApsPage = () => {
   const [aps, setAps] = useState<AccessPoint[] | null>(null);
+  const [sites, setSites] = useState<Site[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const role = useAppStore((state) => state.role);
+  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const canOperate = role !== 'read_only';
 
   useEffect(() => {
-    api.getAps().then(setAps);
+    api.getAps(selectedSiteId).then(setAps).catch(() => setAps([]));
+  }, [selectedSiteId]);
+
+  useEffect(() => {
+    api.getSites().then(setSites).catch(() => setSites([]));
   }, []);
 
   const filtered = useMemo(() => {
@@ -32,7 +37,7 @@ export const ApsPage = () => {
   if (!aps) return <LoadingState label="Loading AP inventory..." />;
 
   const columns: Column<AccessPoint>[] = [
-    { key: 'name', header: 'Name', render: (item) => <div><Link className="font-semibold text-accent hover:underline" to={`/aps/${item.id}`}>{item.name}</Link><p className="text-xs text-muted">{item.ip}</p></div> },
+    { key: 'name', header: 'Name', render: (item) => <div><Link className="font-semibold text-accent hover:underline" to={`/aps/${item.id}`}>{item.name}</Link><p className="text-xs text-muted">{item.ip || 'IP unavailable'}</p></div> },
     { key: 'model', header: 'Model', render: (item) => item.model },
     { key: 'serial', header: 'Serial', render: (item) => item.serial },
     { key: 'site', header: 'Site', render: (item) => sites.find((site) => site.id === item.siteId)?.name ?? item.siteId },
@@ -40,14 +45,14 @@ export const ApsPage = () => {
     { key: 'firmware', header: 'Firmware', render: (item) => `${item.firmware} / ${item.targetFirmware}` },
     { key: 'clients', header: 'Clients', render: (item) => item.clients },
     { key: 'radios', header: 'Radios', render: (item) => item.radios.length },
-    { key: 'channel', header: 'Channel', render: (item) => item.radios.map((radio) => radio.channel).join(', ') },
+    { key: 'channel', header: 'Channel', render: (item) => item.radios.map((radio) => radio.channel || 'Auto').join(', ') },
     { key: 'power', header: 'Tx Power', render: (item) => item.radios.map((radio) => radio.txPower).join(', ') },
     { key: 'lastSeen', header: 'Last Seen', render: (item) => formatRelativeTime(item.lastSeen) },
   ];
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Wireless" title="Access Point Management" description="Monitor RF health, inspect client load, and simulate operational actions across your wireless estate." actions={<><ActionButton><Download className="mr-2 h-4 w-4" />Export</ActionButton><ActionButton><RefreshCcw className="mr-2 h-4 w-4" />Refresh</ActionButton></>} />
+      <PageHeader eyebrow="Wireless" title="Access Point Management" description="Monitor FortiAP inventory, inspect live client load, and stage future RF actions across the selected site." actions={<><ActionButton><Download className="mr-2 h-4 w-4" />Export</ActionButton><ActionButton onClick={() => api.getAps(selectedSiteId).then(setAps).catch(() => setAps([]))}><RefreshCcw className="mr-2 h-4 w-4" />Refresh</ActionButton></>} />
       <Panel title="AP Inventory" subtitle={`${filtered.length} access points shown`}>
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 items-center gap-3 rounded-2xl border border-border bg-soft px-4 py-3">

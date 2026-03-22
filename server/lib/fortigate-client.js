@@ -5,7 +5,9 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const pingCacheTtlMs = 60_000;
 const switchStatsCacheTtlMs = 60_000;
+const wirelessClientsCacheTtlMs = 30_000;
 const switchStatsCache = new Map();
+const wirelessClientsCache = new Map();
 
 const requestJson = (url, apiKey) =>
   new Promise((resolve, reject) => {
@@ -105,6 +107,145 @@ const parseWatts = (value) => {
   if (typeof value !== 'string') return 0;
   const match = value.match(/[\d.]+/);
   return match ? Number(match[0]) : 0;
+};
+
+const inferApModel = (item) => {
+  const profile = extractStatusField(item, ['wtp-profile', 'platform']);
+  if (profile?.includes('-default')) {
+    return profile.replace('-default', '');
+  }
+
+  const serial = extractStatusField(item, ['wtp-id', 'serial']);
+  if (serial?.startsWith('FP')) {
+    return `FAP${serial.slice(2, 6)}`;
+  }
+
+  return profile || 'FortiAP';
+};
+
+const toRadioBand = (band) => {
+  const normalized = String(band || '').toLowerCase();
+  if (normalized.includes('6g')) return '6 GHz';
+  if (normalized.includes('5g') || normalized.includes('11a') || normalized.includes('11ac') || normalized.includes('11be-5g')) return '5 GHz';
+  return '2.4 GHz';
+};
+
+const channelListFromRadio = (radio) =>
+  Array.isArray(radio?.channel) ? radio.channel.map((entry) => Number(entry?.chan)).filter(Number.isFinite) : [];
+
+const primaryChannelFromRadio = (radio) => channelListFromRadio(radio)[0] ?? 0;
+
+const uniqueBy = (items, selector) => {
+  const seen = new Set();
+  const output = [];
+
+  for (const item of items) {
+    const key = selector(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+
+  return output;
+};
+
+const mapApClient = (client) => ({
+  id: client.mac || `${client.wtp_id}-${client.ip || 'client'}`,
+  name: client.hostname || client.host || client.manufacturer || client.mac || 'Client',
+  hostname: client.hostname || client.host || undefined,
+  ip: client.ip || undefined,
+  mac: client.mac || '',
+  ssid: client.ssid || client.vap_name || 'Unknown SSID',
+  radioId: `radio-${client.wtp_radio ?? 'unknown'}`,
+  radioType: client.radio_type || '',
+  signal: parseMaybeNumber(client.signal) ?? undefined,
+  snr: parseMaybeNumber(client.snr) ?? undefined,
+  channel: parseMaybeNumber(client.channel) ?? undefined,
+  manufacturer: client.manufacturer || undefined,
+  health: client.health?.signal_strength?.severity || client.health?.snr?.severity || 'good',
+});
+
+const deriveStatusFromAp = (item, clients) => {
+  if (item.admin !== 'enable') return 'offline';
+
+  const activeRadioCount = [item['radio-1'], item['radio-2'], item['radio-3'], item['radio-4']].filter((radio) => String(radio?.band || '').trim()).length;
+  if (!activeRadioCount) return 'offline';
+
+  const lowHealthClients = clients.filter((client) => client.health === 'poor').length;
+  if (lowHealthClients >= 3) return 'warning';
+
+  if (clients.length === 0 && item['wtp-mode'] === 'remote') return 'warning';
+
+  return 'healthy';
+};
+
+const estimateUtilization = (clients, radioNumber) => {
+  const radioClients = clients.filter((client) => Number(client.wtp_radio) === radioNumber);
+  if (!radioClients.length) return 0;
+
+  const retryPenalty = radioClients.reduce((total, client) => total + (parseMaybeNumber(client.tx_retry_percentage) ?? 0), 0) / radioClients.length;
+  return Math.min(100, Math.round(radioClients.length * 11 + retryPenalty));
+};
+
+const mapApRadio = (radioKey, radio, clients) => {
+  const radioNumber = Number(radio?.['radio-id'] ?? 0) + 1;
+  const radioId = `radio-${radioNumber}`;
+  return {
+    id: radioId,
+    band: toRadioBand(radio?.band),
+    channel: primaryChannelFromRadio(radio),
+    txPower: radio?.['power-value'] ? `${radio['power-value']} dBm` : `${radio?.['power-level'] ?? 100}%`,
+    utilization: estimateUtilization(clients, radioNumber),
+    status: String(radio?.band || '').trim() ? 'up' : 'down',
+  };
+};
+
+const mapSsidsFromAp = (item, clients) => {
+  const ssids = uniqueBy(
+    ['radio-1', 'radio-2', 'radio-3', 'radio-4'].flatMap((radioKey) => {
+      const radio = item[radioKey];
+      if (!Array.isArray(radio?.vaps)) return [];
+
+      return radio.vaps.map((vap) => {
+        const name = vap?.name || vap?.q_origin_key;
+        return name
+          ? {
+              id: `${item['wtp-id']}-${name}`,
+              name,
+              vlan: 'FortiGate WLAN',
+              authMode: 'Managed by FortiGate',
+              clientCount: clients.filter((client) => client.ssid === name).length,
+            }
+          : null;
+      });
+    }).filter(Boolean),
+    (ssid) => ssid.id,
+  );
+
+  return ssids;
+};
+
+const shouldUseCachedWirelessClients = (entry) =>
+  Boolean(entry) && Date.now() - entry.fetchedAt < wirelessClientsCacheTtlMs;
+
+const getCachedWirelessClients = async (site, apiKey) => {
+  const cacheKey = `${site.id}:wifi-clients`;
+  const cached = wirelessClientsCache.get(cacheKey);
+  if (shouldUseCachedWirelessClients(cached)) {
+    return cached.payload;
+  }
+
+  const payload = await requestJson(
+    `https://${site.fortigate_ip}/api/v2/monitor/wifi/client`,
+    apiKey,
+  );
+
+  wirelessClientsCache.set(cacheKey, {
+    fetchedAt: Date.now(),
+    payload,
+  });
+
+  return payload;
 };
 
 const hasAnyTraffic = (stats) =>
@@ -253,6 +394,7 @@ const applyUplinkHeuristics = (ports) => {
 };
 
 const buildSwitchId = (siteId, serial) => `${siteId}--${serial}`;
+const buildApId = (siteId, serial) => `${siteId}--${serial}`;
 
 const mapManagedSwitch = (site, item, statsByPort = {}) => {
   const serial = extractStatusField(item, ['sn', 'serial', 'switch-id']) || 'unknown-switch';
@@ -321,6 +463,45 @@ const mapManagedSwitch = (site, item, statsByPort = {}) => {
       'Live PoE draw is not exposed by the current REST endpoints; budget only is shown here.',
     ],
     ports,
+  };
+};
+
+const mapManagedAccessPoint = (site, item, clients, neighborNames = []) => {
+  const serial = extractStatusField(item, ['wtp-id', 'serial']) || 'unknown-ap';
+  const radios = ['radio-1', 'radio-2', 'radio-3', 'radio-4']
+    .map((radioKey) => mapApRadio(radioKey, item[radioKey], clients))
+    .filter((radio) => radio.status === 'up');
+  const ssids = mapSsidsFromAp(item, clients);
+  const managementIp = clients[0]?.wtp_ip || clients[0]?.wtp_control_ip || '';
+  const status = deriveStatusFromAp(item, clients);
+
+  return {
+    id: buildApId(site.id, serial),
+    name: extractStatusField(item, ['name', 'location']) || serial,
+    model: inferApModel(item),
+    serial,
+    siteId: site.id,
+    status,
+    firmware: extractStatusField(item, ['firmware-provision']) || 'Managed by FortiGate',
+    targetFirmware:
+      extractStatusField(item, ['firmware-provision']) ||
+      (item['firmware-provision-latest'] === 'disable' ? 'No staged target' : 'Latest staged target'),
+    clients: clients.length,
+    radios,
+    ip: managementIp,
+    lastSeen: new Date().toISOString(),
+    profileId: extractStatusField(item, ['wtp-profile', 'apcfg-profile']) || 'default',
+    ssids,
+    configSummary: [
+      `WTP profile: ${extractStatusField(item, ['wtp-profile']) || 'default'}`,
+      `Mode: ${extractStatusField(item, ['wtp-mode']) || 'unknown'}`,
+      `Region: ${extractStatusField(item, ['region']) || 'unassigned'}`,
+      `LED override: ${extractStatusField(item, ['override-led-state']) || 'disable'}`,
+      'Client counts and management IPs are live from monitor/wifi/client.',
+      'Per-radio utilization is estimated from current client load because FortiGate does not expose direct utilization in these endpoints.',
+    ],
+    neighborAps: neighborNames.filter((name) => name !== (extractStatusField(item, ['name', 'location']) || serial)).slice(0, 4),
+    clientDevices: clients.map(mapApClient),
   };
 };
 
@@ -524,5 +705,62 @@ export const createFortiGateClient = ({ siteStore }) => ({
       Array.isArray(statsPayload?.results) && statsPayload.results[0]?.ports ? statsPayload.results[0].ports : {};
 
     return mapManagedSwitch(site, item, statsByPort);
+  },
+
+  async listManagedAccessPointsForSite(site) {
+    if (site.is_demo || !site.fortigate_ip || !site.fortigate_api_key) {
+      return [];
+    }
+
+    const [wtpPayload, clientsPayload] = await Promise.all([
+      requestJson(`https://${site.fortigate_ip}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
+      getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
+    ]);
+
+    const accessPoints = Array.isArray(wtpPayload.results) ? wtpPayload.results : [];
+    const clients = Array.isArray(clientsPayload.results) ? clientsPayload.results : [];
+    const apNames = accessPoints
+      .map((item) => extractStatusField(item, ['name', 'location']))
+      .filter(Boolean);
+
+    return accessPoints.map((item) =>
+      mapManagedAccessPoint(
+        site,
+        item,
+        clients.filter((client) => client.wtp_id === item['wtp-id']),
+        apNames,
+      ),
+    );
+  },
+
+  async getManagedAccessPointDetailForSite(site, accessPointId) {
+    if (site.is_demo || !site.fortigate_ip || !site.fortigate_api_key) {
+      return null;
+    }
+
+    const [wtpPayload, clientsPayload] = await Promise.all([
+      requestJson(`https://${site.fortigate_ip}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
+      getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
+    ]);
+
+    const accessPoints = Array.isArray(wtpPayload.results) ? wtpPayload.results : [];
+    const clients = Array.isArray(clientsPayload.results) ? clientsPayload.results : [];
+    const item = accessPoints.find(
+      (candidate) =>
+        buildApId(site.id, extractStatusField(candidate, ['wtp-id', 'serial']) || 'unknown-ap') === accessPointId,
+    );
+
+    if (!item) return null;
+
+    const apNames = accessPoints
+      .map((candidate) => extractStatusField(candidate, ['name', 'location']))
+      .filter(Boolean);
+
+    return mapManagedAccessPoint(
+      site,
+      item,
+      clients.filter((client) => client.wtp_id === item['wtp-id']),
+      apNames,
+    );
   },
 });

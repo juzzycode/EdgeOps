@@ -117,6 +117,23 @@ export interface AccessPoint {
   ssids: SSID[];
   configSummary: string[];
   neighborAps: string[];
+  clientDevices?: AccessPointClient[];
+}
+
+export interface AccessPointClient {
+  id: string;
+  name: string;
+  hostname?: string;
+  ip?: string;
+  mac: string;
+  ssid: string;
+  radioId: string;
+  radioType: string;
+  signal?: number;
+  snr?: number;
+  channel?: number;
+  manufacturer?: string;
+  health?: 'good' | 'fair' | 'poor';
 }
 
 export interface Client {

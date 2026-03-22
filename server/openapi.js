@@ -13,6 +13,8 @@ const examples = {
       loadDemoSites: '/api/sites/load-demo',
       switches: '/api/switches',
       switchDetail: '/api/switches/:id',
+      accessPoints: '/api/aps',
+      accessPointDetail: '/api/aps/:id',
       gateways: '/api/gateways',
       gatewayApiKeys: '/api/gateways/:gatewayId/api-keys',
       syncConfig: '/api/gateways/:gatewayId/sync-config',
@@ -150,6 +152,52 @@ const examples = {
         profileId: 'default',
         clientCount: 0,
         neighbor: null,
+      },
+    ],
+  },
+  managedAccessPoint: {
+    id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--FP441KTF24014592',
+    name: '441k-Hallway',
+    model: 'FAP441K',
+    serial: 'FP441KTF24014592',
+    siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+    status: 'healthy',
+    firmware: 'Managed by FortiGate',
+    targetFirmware: 'No staged target',
+    clients: 12,
+    radios: [
+      { id: 'radio-1', band: '2.4 GHz', channel: 1, txPower: '27 dBm', utilization: 68, status: 'up' },
+      { id: 'radio-2', band: '5 GHz', channel: 44, txPower: '27 dBm', utilization: 44, status: 'up' },
+      { id: 'radio-3', band: '6 GHz', channel: 1, txPower: '27 dBm', utilization: 0, status: 'up' },
+    ],
+    ip: '192.168.60.44',
+    lastSeen: '2026-03-22T02:18:00.000Z',
+    profileId: 'FAP441K-default',
+    ssids: [
+      { id: 'FP441KTF24014592-Juz-2.4', name: 'Juz-2.4', vlan: 'FortiGate WLAN', authMode: 'Managed by FortiGate', clientCount: 3 },
+      { id: 'FP441KTF24014592-Juzzy-5ghz', name: 'Juzzy-5ghz', vlan: 'FortiGate WLAN', authMode: 'Managed by FortiGate', clientCount: 2 },
+    ],
+    configSummary: [
+      'WTP profile: FAP441K-default',
+      'Mode: remote',
+      'Region: House',
+    ],
+    neighborAps: ['432G-Outdoor', '441k-Den', '443k-Garage'],
+    clientDevices: [
+      {
+        id: '04:33:c2:66:72:72',
+        name: 'DESKTOP-NEHMJM2',
+        hostname: 'DESKTOP-NEHMJM2',
+        ip: '192.168.60.42',
+        mac: '04:33:c2:66:72:72',
+        ssid: 'Juzzy-5ghz',
+        radioId: 'radio-2',
+        radioType: '802.11ax-5G',
+        signal: -69,
+        snr: 26,
+        channel: 44,
+        manufacturer: 'Intel Corporate',
+        health: 'fair',
       },
     ],
   },
@@ -435,6 +483,68 @@ const components = {
         ports: { type: 'array', items: { $ref: '#/components/schemas/SwitchPort' } },
       },
       example: examples.managedSwitch,
+    },
+    Radio: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        band: { type: 'string', enum: ['2.4 GHz', '5 GHz', '6 GHz'] },
+        channel: { type: 'integer' },
+        txPower: { type: 'string' },
+        utilization: { type: 'integer' },
+        status: { type: 'string', enum: ['up', 'down'] },
+      },
+    },
+    SSID: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        vlan: { type: 'string' },
+        authMode: { type: 'string' },
+        clientCount: { type: 'integer' },
+      },
+    },
+    AccessPointClient: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        hostname: { type: 'string', nullable: true },
+        ip: { type: 'string', nullable: true },
+        mac: { type: 'string' },
+        ssid: { type: 'string' },
+        radioId: { type: 'string' },
+        radioType: { type: 'string' },
+        signal: { type: 'integer', nullable: true },
+        snr: { type: 'integer', nullable: true },
+        channel: { type: 'integer', nullable: true },
+        manufacturer: { type: 'string', nullable: true },
+        health: { type: 'string', enum: ['good', 'fair', 'poor'] },
+      },
+    },
+    AccessPoint: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        model: { type: 'string' },
+        serial: { type: 'string' },
+        siteId: { type: 'string' },
+        status: { type: 'string', enum: ['healthy', 'warning', 'critical', 'offline'] },
+        firmware: { type: 'string' },
+        targetFirmware: { type: 'string' },
+        clients: { type: 'integer' },
+        radios: { type: 'array', items: { $ref: '#/components/schemas/Radio' } },
+        ip: { type: 'string' },
+        lastSeen: { type: 'string', format: 'date-time' },
+        profileId: { type: 'string' },
+        ssids: { type: 'array', items: { $ref: '#/components/schemas/SSID' } },
+        configSummary: { type: 'array', items: { type: 'string' } },
+        neighborAps: { type: 'array', items: { type: 'string' } },
+        clientDevices: { type: 'array', items: { $ref: '#/components/schemas/AccessPointClient' } },
+      },
+      example: examples.managedAccessPoint,
     },
     Gateway: {
       type: 'object',
@@ -883,6 +993,92 @@ export const createOpenApiDocument = ({ port }) => ({
                 examples: {
                   default: {
                     value: { error: 'Switch not found' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/aps': {
+      get: {
+        tags: ['Access Points'],
+        summary: 'List managed access points',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Managed access point list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    accessPoints: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/AccessPoint' },
+                    },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: { accessPoints: [examples.managedAccessPoint] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/aps/{accessPointId}': {
+      get: {
+        tags: ['Access Points'],
+        summary: 'Get managed access point detail',
+        parameters: [
+          {
+            name: 'accessPointId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--FP441KTF24014592',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Managed access point detail',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    accessPoint: { $ref: '#/components/schemas/AccessPoint' },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: { accessPoint: examples.managedAccessPoint },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'Access point not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                examples: {
+                  default: {
+                    value: { error: 'Access point not found' },
                   },
                 },
               },
