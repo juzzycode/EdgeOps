@@ -740,6 +740,7 @@ const applyUplinkHeuristics = (ports) => {
 
 const buildSwitchId = (siteId, serial) => `${siteId}--${serial}`;
 const buildApId = (siteId, serial) => `${siteId}--${serial}`;
+const buildFortiGateId = (siteId) => `fortigate--${siteId}`;
 const buildRogueApId = (siteId, bssid, ssid) => `${siteId}--rogue--${bssid || ssid || 'unknown'}`;
 
 const buildPortOverrideMap = (rows = []) =>
@@ -1030,6 +1031,62 @@ const normalizeSite = (site, overrides = {}) => ({
   ...overrides,
 });
 
+const parseAllowAccess = (value) =>
+  String(value || '')
+    .split(/\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const mapFortiGateInterface = (siteId, item) => ({
+  id: `${buildFortiGateId(siteId)}--${String(item?.name || item?.q_origin_key || 'interface')}`,
+  name: String(item?.name || item?.q_origin_key || 'Interface'),
+  role: String(item?.role || 'unknown'),
+  type: String(item?.type || 'unknown'),
+  ip:
+    parseInterfaceIp(item?.ip) ||
+    parseInterfaceIp(item?.['ipv4-address']) ||
+    parseInterfaceIp(item?.['secondary-ip']) ||
+    'Unavailable',
+  alias: String(item?.alias || '').trim() || undefined,
+  status:
+    String(item?.status || '').toLowerCase() === 'up'
+      ? 'up'
+      : String(item?.status || '').toLowerCase() === 'down'
+        ? 'down'
+        : 'unknown',
+  allowAccess: parseAllowAccess(item?.allowaccess),
+});
+
+const mapFortiGateDevice = (site, summary, interfaces = []) => ({
+  id: buildFortiGateId(site.id),
+  siteId: site.id,
+  siteName: summary.name,
+  name: summary.fortigateName || site.fortigate_name || site.name,
+  hostname: summary.fortigateName || site.fortigate_name || site.name,
+  managementIp: summary.fortigateIp || site.fortigate_ip || '',
+  wanIp: summary.wanIp ?? null,
+  serial: summary.fortigateSerial ?? null,
+  firmware: summary.fortigateVersion ?? null,
+  status: summary.status,
+  apiReachable: Boolean(summary.apiReachable),
+  latencyAvgMs: summary.latencyAvgMs ?? null,
+  lastSeen: summary.latencyCheckedAt || new Date().toISOString(),
+  addressObjectCount: summary.addressObjectCount ?? 0,
+  switchCount: summary.switchCount ?? 0,
+  apCount: summary.apCount ?? 0,
+  clientCount: summary.clientCount ?? 0,
+  configArchiveEnabled: summary.configArchiveEnabled !== false,
+  configSummary: [
+    `Firmware: ${summary.fortigateVersion || 'Unavailable'}`,
+    `Serial: ${summary.fortigateSerial || 'Unavailable'}`,
+    `WAN status: ${summary.wanStatus}`,
+    `Latency: ${summary.latencyAvgMs !== null && summary.latencyAvgMs !== undefined ? `${summary.latencyAvgMs.toFixed(1)} ms` : 'Unavailable'}`,
+    `Config archive: ${summary.configArchiveEnabled === false ? 'disabled' : 'enabled'}`,
+  ],
+  interfaces,
+  lastSyncError: summary.lastSyncError ?? null,
+});
+
 export const createFortiGateClient = ({ siteStore }) => ({
   async summarizeSite(site) {
     let workingSite = site;
@@ -1115,6 +1172,85 @@ export const createFortiGateClient = ({ siteStore }) => ({
         lastSyncError: error instanceof Error ? error.message : 'Unable to reach FortiGate API',
       });
     }
+  },
+
+  async listFortiGatesForSite(site) {
+    if (!site?.fortigate_ip || !site?.fortigate_api_key) {
+      return [];
+    }
+
+    const [summary, interfacesPayload] = await Promise.all([
+      this.summarizeSite(site),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/system/interface`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+    ]);
+
+    const interfaces = Array.isArray(interfacesPayload.results)
+      ? interfacesPayload.results.map((item) => mapFortiGateInterface(site.id, item))
+      : [];
+
+    return [mapFortiGateDevice(site, summary, interfaces)];
+  },
+
+  async getFortiGateDetailForSite(site, fortiGateId) {
+    if (!site?.fortigate_ip || !site?.fortigate_api_key) {
+      return null;
+    }
+
+    if (fortiGateId !== buildFortiGateId(site.id)) {
+      return null;
+    }
+
+    const [summary, interfacesPayload, statusPayload, addressPayload] = await Promise.all([
+      this.summarizeSite(site),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/system/interface`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/status`,
+        site.fortigate_api_key,
+      ).catch(() => ({})),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/firewall/address`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+    ]);
+
+    const interfaces = Array.isArray(interfacesPayload.results)
+      ? interfacesPayload.results.map((item) => mapFortiGateInterface(site.id, item))
+      : [];
+    const addressCount = Array.isArray(addressPayload.results)
+      ? addressPayload.results.length
+      : summary.addressObjectCount ?? 0;
+
+    const runtimeHostname =
+      extractFromStatusPayload(statusPayload, ['hostname', 'host-name', 'name']) ||
+      summary.fortigateName ||
+      site.fortigate_name ||
+      site.name;
+    const runtimeVersion =
+      extractFromStatusPayload(statusPayload, ['version', 'firmware-version']) ||
+      summary.fortigateVersion ||
+      null;
+    const runtimeSerial =
+      extractFromStatusPayload(statusPayload, ['serial', 'serial-number']) ||
+      summary.fortigateSerial ||
+      null;
+
+    return mapFortiGateDevice(
+      site,
+      {
+        ...summary,
+        fortigateName: runtimeHostname,
+        fortigateVersion: runtimeVersion,
+        fortigateSerial: runtimeSerial,
+        addressObjectCount: addressCount,
+      },
+      interfaces,
+    );
   },
 
   async listManagedSwitchesForSite(site) {

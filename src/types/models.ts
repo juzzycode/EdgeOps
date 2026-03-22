@@ -83,6 +83,41 @@ export interface Site {
   source?: 'live';
 }
 
+export interface FortiGateInterface {
+  id: string;
+  name: string;
+  role: string;
+  type: string;
+  ip: string;
+  alias?: string;
+  status: 'up' | 'down' | 'unknown';
+  allowAccess: string[];
+}
+
+export interface FortiGateDevice {
+  id: string;
+  siteId: string;
+  siteName: string;
+  name: string;
+  hostname: string;
+  managementIp: string;
+  wanIp: string | null;
+  serial: string | null;
+  firmware: string | null;
+  status: DeviceStatus;
+  apiReachable: boolean;
+  latencyAvgMs: number | null;
+  lastSeen: string;
+  addressObjectCount: number;
+  switchCount: number;
+  apCount: number;
+  clientCount: number;
+  configArchiveEnabled: boolean;
+  configSummary: string[];
+  interfaces: FortiGateInterface[];
+  lastSyncError?: string | null;
+}
+
 export interface SwitchPort {
   id: string;
   portNumber: string;

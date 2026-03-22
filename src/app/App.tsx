@@ -9,6 +9,8 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { ClientsPage } from '@/features/clients/ClientsPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { FirmwarePage } from '@/features/firmware/FirmwarePage';
+import { FortiGateDetailPage } from '@/features/fortigates/FortiGateDetailPage';
+import { FortiGatesPage } from '@/features/fortigates/FortiGatesPage';
 import { ProfilesPage } from '@/features/profiles/ProfilesPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { SiteDetailPage } from '@/features/sites/SiteDetailPage';
@@ -77,6 +79,8 @@ const ProtectedRoutes = () => {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/sites" element={<SitesPage />} />
         <Route path="/sites/:id" element={<SiteDetailPage />} />
+        <Route path="/fortigates" element={<FortiGatesPage />} />
+        <Route path="/fortigates/:id" element={<FortiGateDetailPage />} />
         <Route path="/switches" element={<SwitchesPage />} />
         <Route path="/switches/:id" element={<SwitchDetailPage />} />
         <Route path="/aps" element={<ApsPage />} />

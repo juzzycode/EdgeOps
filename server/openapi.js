@@ -13,6 +13,8 @@ const examples = {
       alerts: '/api/alerts',
       switches: '/api/switches',
       switchDetail: '/api/switches/:id',
+      fortiGates: '/api/fortigates',
+      fortiGateDetail: '/api/fortigates/:id',
       accessPoints: '/api/aps',
       rogueAccessPoints: '/api/aps/rogues',
       accessPointDetail: '/api/aps/:id',
@@ -143,6 +145,46 @@ const examples = {
         neighbor: null,
       },
     ],
+  },
+  fortiGate: {
+    id: 'fortigate--site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+    siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+    siteName: 'Denver Branch',
+    name: 'DEN-BRANCH-FGT',
+    hostname: 'DEN-BRANCH-FGT',
+    managementIp: '192.0.2.14',
+    wanIp: '203.0.113.14',
+    serial: 'FGT60FTK24000001',
+    firmware: 'v7.4.5',
+    status: 'healthy',
+    apiReachable: true,
+    latencyAvgMs: 12.3,
+    lastSeen: '2026-03-22T03:14:23.000Z',
+    addressObjectCount: 17,
+    switchCount: 2,
+    apCount: 4,
+    clientCount: 31,
+    configArchiveEnabled: true,
+    configSummary: [
+      'Firmware: v7.4.5',
+      'Serial: FGT60FTK24000001',
+      'WAN status: online',
+      'Latency: 12.3 ms',
+      'Config archive: enabled',
+    ],
+    interfaces: [
+      {
+        id: 'fortigate--site_0e7d6a46-0402-4d47-9f49-5623b122f27d--wan1',
+        name: 'wan1',
+        role: 'wan',
+        type: 'physical',
+        ip: '203.0.113.14',
+        alias: 'Primary Internet',
+        status: 'up',
+        allowAccess: ['ping', 'https'],
+      },
+    ],
+    lastSyncError: null,
   },
   managedAccessPoint: {
     id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--FP441KTF24014592',
@@ -844,7 +886,7 @@ const components = {
       type: 'object',
       properties: {
         id: { type: 'string' },
-        deviceType: { type: 'string', enum: ['switch', 'ap'] },
+        deviceType: { type: 'string', enum: ['switch', 'ap', 'fortigate'] },
         deviceId: { type: 'string' },
         deviceName: { type: 'string', nullable: true },
         siteId: { type: 'string', nullable: true },
@@ -856,6 +898,55 @@ const components = {
         rolloutGroup: { type: 'string' },
       },
       example: examples.firmwareStatus,
+    },
+    FortiGateInterface: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        role: { type: 'string' },
+        type: { type: 'string' },
+        ip: { type: 'string' },
+        alias: { type: 'string', nullable: true },
+        status: { type: 'string', enum: ['up', 'down', 'unknown'] },
+        allowAccess: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+      },
+    },
+    FortiGateDevice: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        siteId: { type: 'string' },
+        siteName: { type: 'string' },
+        name: { type: 'string' },
+        hostname: { type: 'string' },
+        managementIp: { type: 'string' },
+        wanIp: { type: 'string', nullable: true },
+        serial: { type: 'string', nullable: true },
+        firmware: { type: 'string', nullable: true },
+        status: { type: 'string', enum: ['healthy', 'warning', 'critical', 'offline'] },
+        apiReachable: { type: 'boolean' },
+        latencyAvgMs: { type: 'number', nullable: true },
+        lastSeen: { type: 'string', format: 'date-time' },
+        addressObjectCount: { type: 'integer' },
+        switchCount: { type: 'integer' },
+        apCount: { type: 'integer' },
+        clientCount: { type: 'integer' },
+        configArchiveEnabled: { type: 'boolean' },
+        configSummary: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        interfaces: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/FortiGateInterface' },
+        },
+        lastSyncError: { type: 'string', nullable: true },
+      },
+      example: examples.fortiGate,
     },
     Gateway: {
       type: 'object',
@@ -1681,6 +1772,92 @@ export const createOpenApiDocument = ({ port }) => ({
                 examples: {
                   default: {
                     value: examples.firmwareList,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/fortigates': {
+      get: {
+        tags: ['FortiGates'],
+        summary: 'List FortiGate devices by site scope',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'FortiGate inventory list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    fortiGates: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/FortiGateDevice' },
+                    },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: { fortiGates: [examples.fortiGate] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/fortigates/{fortiGateId}': {
+      get: {
+        tags: ['FortiGates'],
+        summary: 'Get FortiGate detail',
+        parameters: [
+          {
+            name: 'fortiGateId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            example: 'fortigate--site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'FortiGate detail',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    fortiGate: { $ref: '#/components/schemas/FortiGateDevice' },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: { fortiGate: examples.fortiGate },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'FortiGate not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                examples: {
+                  default: {
+                    value: { error: 'FortiGate not found' },
                   },
                 },
               },

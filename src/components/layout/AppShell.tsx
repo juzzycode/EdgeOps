@@ -11,6 +11,7 @@ import { EDGEOPS_VERSION } from '@/version';
 const navItems = [
   ['Dashboard', '/dashboard'],
   ['Sites', '/sites'],
+  ['FortiGates', '/fortigates'],
   ['Switches', '/switches'],
   ['Access Points', '/aps'],
   ['Clients', '/clients'],

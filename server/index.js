@@ -21,6 +21,7 @@ import { createOpenApiDocument } from './openapi.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAlertsRouter } from './routes/alerts.js';
 import { createEventsRouter } from './routes/events.js';
+import { createFortiGatesRouter } from './routes/fortigates.js';
 import { createGatewayRouter } from './routes/gateways.js';
 import { createApsRouter } from './routes/aps.js';
 import { createClientsRouter } from './routes/clients.js';
@@ -156,6 +157,7 @@ const start = async () => {
           <li><a href="/api/alerts">Alerts</a> <code>GET /api/alerts</code></li>
           <li><a href="/api/profiles">Profiles</a> <code>GET /api/profiles</code></li>
           <li><a href="/api/firmware">Firmware</a> <code>GET /api/firmware</code></li>
+          <li><a href="/api/fortigates">FortiGates</a> <code>GET /api/fortigates</code></li>
           <li><a href="/api/switches">Switches</a> <code>GET /api/switches</code></li>
           <li><a href="/api/aps">Access Points</a> <code>GET /api/aps</code></li>
           <li><a href="/api/aps/rogues">Rogue APs</a> <code>GET /api/aps/rogues</code></li>
@@ -195,6 +197,8 @@ const start = async () => {
         events: '/api/events',
         profiles: '/api/profiles',
         firmware: '/api/firmware',
+        fortiGates: '/api/fortigates',
+        fortiGateDetail: '/api/fortigates/:id',
         topology: '/api/topology',
         switches: '/api/switches',
         switchDetail: '/api/switches/:id',
@@ -239,6 +243,7 @@ const start = async () => {
   app.use('/api/events', createEventsRouter({ historyStore }));
   app.use('/api/profiles', createProfilesRouter({ inventoryService }));
   app.use('/api/firmware', createFirmwareRouter({ inventoryService }));
+  app.use('/api/fortigates', createFortiGatesRouter({ siteStore, fortiGateClient }));
   app.use('/api/topology', createTopologyRouter({ topologyService }));
   app.use('/api/switches', createSwitchesRouter({ siteStore, fortiGateClient, deviceActionService }));
   app.use('/api/aps', createApsRouter({ siteStore, fortiGateClient, deviceActionService }));
