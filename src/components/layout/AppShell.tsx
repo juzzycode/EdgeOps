@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
-import { Bell, ChevronDown, Command, MoonStar, Search, SunMedium, UserCircle2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Bell, ChevronDown, Command, KeyRound, LogOut, MoonStar, Search, Settings2, SunMedium, UserCircle2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
@@ -21,12 +21,64 @@ const navItems = [
 
 export const AppShell = ({ children }: PropsWithChildren) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sites, setSites] = useState<Site[]>([]);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const { role, theme, selectedSiteId, setRole, setSelectedSiteId, toggleTheme, commandPaletteOpen, setCommandPaletteOpen } = useAppStore();
 
   useEffect(() => {
     api.getSites().then(setSites).catch(() => setSites([]));
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [profileMenuOpen]);
+
+  useEffect(() => {
+    if (!profileMessage) return undefined;
+    const timeout = window.setTimeout(() => setProfileMessage(''), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [profileMessage]);
+
+  const selectedSiteName =
+    selectedSiteId === 'all' ? 'All sites' : sites.find((site) => site.id === selectedSiteId)?.name ?? 'Scoped site';
+
+  const goToSettings = () => {
+    setProfileMenuOpen(false);
+    navigate('/settings');
+  };
+
+  const handleChangePassword = () => {
+    setProfileMenuOpen(false);
+    navigate('/settings');
+    setProfileMessage('Password management will live under Settings once authentication is wired.');
+  };
+
+  const handleNotificationSettings = () => {
+    setProfileMenuOpen(false);
+    navigate('/settings');
+    setProfileMessage('Notification preferences are available under Settings.');
+  };
+
+  const handleSignOut = () => {
+    setProfileMenuOpen(false);
+    setRole('read_only');
+    setSelectedSiteId('all');
+    setCommandPaletteOpen(false);
+    navigate('/dashboard');
+    setProfileMessage('Signed out of the local workspace simulation.');
+  };
 
   return (
     <div className="min-h-screen">
@@ -56,6 +108,11 @@ export const AppShell = ({ children }: PropsWithChildren) => {
         </aside>
 
         <div className="min-w-0 flex-1">
+          {profileMessage ? (
+            <div className="mb-4 rounded-2xl border border-accent/25 bg-accent-muted px-4 py-3 text-sm font-medium text-accent">
+              {profileMessage}
+            </div>
+          ) : null}
           <div className="mb-4 flex gap-2 overflow-x-auto lg:hidden">
             {navItems.map(([label, to]) => (
               <NavLink
@@ -110,12 +167,62 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                 <button className="focus-ring rounded-2xl border border-border bg-soft p-3 text-muted hover:text-text">
                   <Bell className="h-4 w-4" />
                 </button>
-                <div className="flex items-center gap-3 rounded-2xl border border-border bg-soft px-4 py-3">
-                  <UserCircle2 className="h-5 w-5 text-accent" />
-                  <div>
-                    <p className="text-sm font-medium text-text">Network Admin</p>
-                    <p className="text-xs capitalize text-muted">{role.replace('_', ' ')}</p>
-                  </div>
+                <div className="relative" ref={profileMenuRef}>
+                  <button
+                    className="focus-ring flex items-center gap-3 rounded-2xl border border-border bg-soft px-4 py-3 text-left transition hover:border-accent/30"
+                    onClick={() => setProfileMenuOpen((current) => !current)}
+                    type="button"
+                  >
+                    <UserCircle2 className="h-5 w-5 text-accent" />
+                    <div>
+                      <p className="text-sm font-medium text-text">Network Admin</p>
+                      <p className="text-xs capitalize text-muted">{role.replace('_', ' ')}</p>
+                    </div>
+                    <ChevronDown className={cn('h-4 w-4 text-muted transition', profileMenuOpen && 'rotate-180')} />
+                  </button>
+
+                  {profileMenuOpen ? (
+                    <div className="absolute right-0 z-40 mt-3 w-80 rounded-3xl border border-border bg-surface p-3 shadow-2xl">
+                      <div className="rounded-2xl bg-soft px-4 py-3">
+                        <p className="text-sm font-semibold text-text">Network Admin</p>
+                        <p className="mt-1 text-xs capitalize text-muted">{role.replace('_', ' ')}</p>
+                        <p className="mt-2 text-xs text-muted">Current scope: {selectedSiteName}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        <MenuAction
+                          icon={UserCircle2}
+                          label="Profile and Preferences"
+                          description="Open Settings for workspace, profile, and platform controls."
+                          onClick={goToSettings}
+                        />
+                        <MenuAction
+                          icon={KeyRound}
+                          label="Change Password"
+                          description="Jump to the future credential management area."
+                          onClick={handleChangePassword}
+                        />
+                        <MenuAction
+                          icon={Bell}
+                          label="Notification Settings"
+                          description="Review alert delivery and local preference controls."
+                          onClick={handleNotificationSettings}
+                        />
+                        <MenuAction
+                          icon={Settings2}
+                          label="Operator Settings"
+                          description="Tune role simulation, site scope, and telemetry preferences."
+                          onClick={goToSettings}
+                        />
+                        <MenuAction
+                          icon={LogOut}
+                          label="Logout"
+                          description="Exit the local workspace simulation and return to read-only mode."
+                          onClick={handleSignOut}
+                          tone="danger"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -127,3 +234,34 @@ export const AppShell = ({ children }: PropsWithChildren) => {
     </div>
   );
 };
+
+const MenuAction = ({
+  icon: Icon,
+  label,
+  description,
+  onClick,
+  tone = 'default',
+}: {
+  icon: typeof UserCircle2;
+  label: string;
+  description: string;
+  onClick: () => void;
+  tone?: 'default' | 'danger';
+}) => (
+  <button
+    className={cn(
+      'focus-ring flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left transition',
+      tone === 'danger' ? 'hover:bg-danger/10' : 'hover:bg-soft',
+    )}
+    onClick={onClick}
+    type="button"
+  >
+    <div className={cn('rounded-2xl p-2', tone === 'danger' ? 'bg-danger/10 text-danger' : 'bg-accent-muted text-accent')}>
+      <Icon className="h-4 w-4" />
+    </div>
+    <div>
+      <p className={cn('text-sm font-medium', tone === 'danger' ? 'text-danger' : 'text-text')}>{label}</p>
+      <p className="mt-1 text-xs text-muted">{description}</p>
+    </div>
+  </button>
+);
