@@ -107,9 +107,27 @@ const parseWatts = (value) => {
   return match ? Number(match[0]) : 0;
 };
 
-const mapPortStatus = (port) => {
-  if (port.status === 'up') return 'up';
+const hasAnyTraffic = (stats) =>
+  Boolean(
+    stats &&
+      (stats.rxBytes > 0 ||
+        stats.txBytes > 0 ||
+        stats.rxPackets > 0 ||
+        stats.txPackets > 0 ||
+        stats.l3Packets > 0 ||
+        stats.rxErrors > 0 ||
+        stats.txErrors > 0 ||
+        stats.rxDrops > 0 ||
+        stats.txDrops > 0),
+  );
+
+const mapPortStatus = (port, stats) => {
   if (port['poe-status'] === 'disable') return 'disabled';
+  if (stats) {
+    if (!hasAnyTraffic(stats)) return 'down';
+    if ((stats.rxErrors > 0 || stats.txErrors > 0 || stats.crcAlignments > 0) && port.status === 'up') return 'warning';
+  }
+  if (port.status === 'up') return 'up';
   return 'down';
 };
 
@@ -249,7 +267,7 @@ const mapManagedSwitch = (site, item, statsByPort = {}) => {
       return {
         id: `${buildSwitchId(site.id, serial)}-${portName}`,
         portNumber: portName,
-        status: mapPortStatus(port),
+        status: mapPortStatus(port, stats),
         speed: port.speed || 'auto',
         poeWatts: 0,
         vlan: port.vlan || '_default',
