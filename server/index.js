@@ -9,6 +9,8 @@ import { createOpenApiDocument } from './openapi.js';
 import { createGatewayRouter } from './routes/gateways.js';
 import { createSetupRouter } from './routes/setup.js';
 
+const verboseLogging = process.argv.includes('-v') || process.argv.includes('--verbose');
+
 const start = async () => {
   const app = express();
   const db = await createDatabase(serverConfig.dbPath);
@@ -24,6 +26,19 @@ const start = async () => {
   const openApiDocument = createOpenApiDocument({ port: serverConfig.port, setupFiles: serverConfig.setupFiles });
 
   app.use(express.json());
+
+  if (verboseLogging) {
+    app.use((request, response, next) => {
+      const startedAt = Date.now();
+      response.on('finish', () => {
+        const durationMs = Date.now() - startedAt;
+        console.log(
+          `[api] ${request.method} ${request.originalUrl} -> ${response.statusCode} ${durationMs}ms`,
+        );
+      });
+      next();
+    });
+  }
 
   app.get('/', (_request, response) => {
     response.type('html').send(`<!doctype html>
@@ -137,6 +152,9 @@ const start = async () => {
 
   const server = app.listen(serverConfig.port, () => {
     console.log(`EdgeOps gateway cache API listening on http://localhost:${serverConfig.port}`);
+    if (verboseLogging) {
+      console.log('[api] Verbose request logging enabled');
+    }
   });
 
   server.on('error', (error) => {

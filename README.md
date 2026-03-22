@@ -42,11 +42,18 @@ npm run server
 
 The backend automatically reads `.env` for `EDGEOPS_PORT`, `EDGEOPS_DB_PATH`, and `EDGEOPS_SECRET`.
 On first load, the frontend now checks backend setup status and shows a startup wizard until the required setup files exist.
+If your frontend cannot reach the backend on the same origin, set `VITE_API_BASE_URL`, for example `VITE_API_BASE_URL=http://192.168.1.10:18787`.
 
 Then run the frontend dev server:
 
 ```bash
 npm run dev -- --host 0.0.0.0
+```
+
+Optional backend request logging:
+
+```bash
+npm run server -- -v
 ```
 
 ### Production Build Check

@@ -2,14 +2,25 @@ import { accessPoints, alerts, bandwidthUsage, clients, deviceProfiles, eventLog
 import type { SetupStatus } from '@/types/models';
 
 const delay = async <T,>(data: T, timeout = 280) => new Promise<T>((resolve) => setTimeout(() => resolve(data), timeout));
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+const withApiBase = (input: string) => `${apiBaseUrl}${input}`;
+
 const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
-  const response = await fetch(input, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(withApiBase(input), {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+      ...init,
+    });
+  } catch (error) {
+    throw new Error(
+      `Unable to reach the backend API at ${withApiBase(input)}. If the frontend is not sharing the same origin, set VITE_API_BASE_URL in your frontend environment.`,
+    );
+  }
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);

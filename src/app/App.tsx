@@ -55,7 +55,7 @@ export const App = () => {
     return (
       <ErrorState
         title="Backend setup status unavailable"
-        description="Start the API server so the startup wizard can load and determine whether setup is complete."
+        description={setupError}
       />
     );
   }
