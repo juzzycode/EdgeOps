@@ -176,10 +176,17 @@ export interface Alert {
   title: string;
   description: string;
   siteId: string;
+  siteName?: string;
   deviceId?: string;
   deviceType?: 'switch' | 'ap' | 'site';
+  deviceName?: string;
   timestamp: string;
   acknowledged: boolean;
+  source?: 'live' | 'demo';
+  context?: Array<{
+    label: string;
+    value: string;
+  }>;
 }
 
 export interface FirmwareStatus {

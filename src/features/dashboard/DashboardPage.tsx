@@ -9,14 +9,16 @@ import { HealthDonut } from '@/components/charts/HealthDonut';
 import { TopologyPlaceholder } from '@/components/data-display/TopologyPlaceholder';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { api } from '@/services/api';
+import { useAppStore } from '@/store/useAppStore';
 import { formatNumber, formatRelativeTime } from '@/lib/utils';
 
 export const DashboardPage = () => {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getDashboard>> | null>(null);
+  const { selectedSiteId } = useAppStore();
 
   useEffect(() => {
-    api.getDashboard().then(setData);
-  }, []);
+    api.getDashboard(selectedSiteId).then(setData);
+  }, [selectedSiteId]);
 
   const healthBreakdown = useMemo(() => {
     if (!data) return [];
@@ -88,7 +90,7 @@ export const DashboardPage = () => {
 
         <Panel title="Recent Alerts" subtitle="Latest unresolved events across the estate.">
           <div className="space-y-3">
-            {data.alerts.map((alert) => (
+            {data.alerts.slice(0, 5).map((alert) => (
               <div key={alert.id} className="rounded-2xl border border-border bg-soft p-4">
                 <div className="flex items-center justify-between gap-3">
                   <StatusBadge value={alert.severity} type="severity" />
@@ -96,6 +98,7 @@ export const DashboardPage = () => {
                 </div>
                 <p className="mt-3 text-sm font-semibold text-text">{alert.title}</p>
                 <p className="mt-2 text-sm text-muted">{alert.description}</p>
+                <p className="mt-2 text-xs text-muted">{alert.siteName ?? alert.siteId}</p>
               </div>
             ))}
           </div>

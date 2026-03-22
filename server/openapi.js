@@ -11,6 +11,7 @@ const examples = {
       sites: '/api/sites',
       siteDetail: '/api/sites/:id',
       loadDemoSites: '/api/sites/load-demo',
+      alerts: '/api/alerts',
       switches: '/api/switches',
       switchDetail: '/api/switches/:id',
       accessPoints: '/api/aps',
@@ -233,6 +234,64 @@ const examples = {
     vlanId: 60,
     dhcpLeaseStatus: 'leased',
     connectedAt: '2026-03-22T01:05:19.000Z',
+  },
+  alert: {
+    id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--S426EFTF21001195-port-errors',
+    severity: 'warning',
+    type: 'port errors',
+    title: 'S426EFTF21001195 has port errors',
+    description: '2 ports need attention: port25, port26.',
+    siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+    siteName: 'Denver Branch',
+    deviceId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--S426EFTF21001195',
+    deviceType: 'switch',
+    deviceName: 'S426EFTF21001195',
+    timestamp: '2026-03-22T03:14:23.000Z',
+    acknowledged: false,
+    source: 'live',
+    context: [
+      { label: 'Affected Ports', value: 'port25, port26' },
+      { label: 'Uplink', value: 'up' },
+    ],
+  },
+  alertList: {
+    alerts: [
+      {
+        id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d-site-packet-loss',
+        severity: 'warning',
+        type: 'site connectivity degraded',
+        title: 'Denver Branch WAN latency degraded',
+        description: 'The latest ping probe reported 12% packet loss to the FortiGate management address.',
+        siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+        siteName: 'Denver Branch',
+        deviceId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+        deviceType: 'site',
+        deviceName: 'DEN-BRANCH-FGT',
+        timestamp: '2026-03-22T03:14:23.000Z',
+        acknowledged: false,
+        source: 'live',
+        context: [{ label: 'Average Latency', value: '12.3 ms' }],
+      },
+      {
+        id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--S426EFTF21001195-port-errors',
+        severity: 'warning',
+        type: 'port errors',
+        title: 'S426EFTF21001195 has port errors',
+        description: '2 ports need attention: port25, port26.',
+        siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+        siteName: 'Denver Branch',
+        deviceId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--S426EFTF21001195',
+        deviceType: 'switch',
+        deviceName: 'S426EFTF21001195',
+        timestamp: '2026-03-22T03:14:23.000Z',
+        acknowledged: false,
+        source: 'live',
+        context: [
+          { label: 'Affected Ports', value: 'port25, port26' },
+          { label: 'Uplink', value: 'up' },
+        ],
+      },
+    ],
   },
   setupStatus: {
     complete: false,
@@ -622,6 +681,36 @@ const components = {
         connectedAt: { type: 'string', format: 'date-time', nullable: true },
       },
       example: examples.managedClient,
+    },
+    AlertContext: {
+      type: 'object',
+      properties: {
+        label: { type: 'string' },
+        value: { type: 'string' },
+      },
+    },
+    Alert: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        severity: { type: 'string', enum: ['critical', 'warning', 'info'] },
+        type: { type: 'string' },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        siteId: { type: 'string' },
+        siteName: { type: 'string', nullable: true },
+        deviceId: { type: 'string', nullable: true },
+        deviceType: { type: 'string', enum: ['site', 'switch', 'ap'], nullable: true },
+        deviceName: { type: 'string', nullable: true },
+        timestamp: { type: 'string', format: 'date-time' },
+        acknowledged: { type: 'boolean' },
+        source: { type: 'string', enum: ['live', 'demo'], nullable: true },
+        context: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/AlertContext' },
+        },
+      },
+      example: examples.alert,
     },
     Gateway: {
       type: 'object',
@@ -1294,6 +1383,58 @@ export const createOpenApiDocument = ({ port }) => ({
                 examples: {
                   default: {
                     value: { clients: [examples.managedClient] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/alerts': {
+      get: {
+        tags: ['Alerts'],
+        summary: 'List live generated alerts',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+          {
+            name: 'severity',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['critical', 'warning', 'info'] },
+            example: 'warning',
+          },
+          {
+            name: 'hours',
+            in: 'query',
+            required: false,
+            schema: { type: 'integer' },
+            example: 24,
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Generated alert list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    alerts: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Alert' },
+                    },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: examples.alertList,
                   },
                 },
               },

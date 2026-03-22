@@ -104,6 +104,7 @@ npm run build
 
 - Site onboarding and FortiGate summaries already flow through `server/routes/sites.js` and `src/services/api.ts`.
 - Site records support create, edit, and delete flows through the same `/api/sites` backend.
+- Live alert generation now flows through `/api/alerts`, combining site reachability, switch state, and AP health into a shared alert feed for the dashboard and alert center.
 - Expand the FortiGate client in `server/lib/fortigate-client.js` with more endpoints as device inventory moves off mock data.
 - Use `server/index.js` plus the SQLite-backed gateway cache for real firewall or gateway config retrieval.
 - Keep page components unchanged where possible by preserving return shapes from the mock service layer.

@@ -96,15 +96,17 @@ Implemented capabilities:
 
 - Alert center view
 - Severity filtering
+- Time-window filtering
+- Device-type filtering
 - Recent alert list
 - Alert detail drawer
-- Mock alert types including:
+- Live generated alerts from FortiGate-backed signals including:
+  - site connectivity degraded
   - device offline
-  - port errors placeholder
-  - PoE overload
+  - switch uplink degraded
+  - switch port errors
   - AP high channel utilization
-  - rogue AP placeholder
-  - firmware mismatch
+  - wireless client health degradation
 
 ## Profiles
 

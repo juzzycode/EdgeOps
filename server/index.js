@@ -6,9 +6,11 @@ import { createDatabase } from './lib/database.js';
 import { createFortiGateClient } from './lib/fortigate-client.js';
 import { createGatewayConfigService } from './lib/gateway-config-service.js';
 import { createGatewayRepository } from './lib/gateway-repository.js';
+import { createAlertService } from './lib/alert-service.js';
 import { createSiteStore } from './lib/site-store.js';
 import { createSetupStore } from './lib/setup-store.js';
 import { createOpenApiDocument } from './openapi.js';
+import { createAlertsRouter } from './routes/alerts.js';
 import { createGatewayRouter } from './routes/gateways.js';
 import { createApsRouter } from './routes/aps.js';
 import { createClientsRouter } from './routes/clients.js';
@@ -33,6 +35,7 @@ const start = async () => {
     secret: serverConfig.secret,
   });
   const fortiGateClient = createFortiGateClient({ siteStore });
+  const alertService = createAlertService({ siteStore, fortiGateClient });
   const gatewayConfigService = createGatewayConfigService({ repository });
   const openApiDocument = createOpenApiDocument({ port: serverConfig.port, setupFiles: serverConfig.setupFiles });
 
@@ -116,6 +119,7 @@ const start = async () => {
           <li><a href="/api/openapi.json">OpenAPI spec</a> <code>GET /api/openapi.json</code></li>
           <li><a href="/api/health">Health check</a> <code>GET /api/health</code></li>
           <li><a href="/api/sites">Sites</a> <code>GET /api/sites</code></li>
+          <li><a href="/api/alerts">Alerts</a> <code>GET /api/alerts</code></li>
           <li><a href="/api/switches">Switches</a> <code>GET /api/switches</code></li>
           <li><a href="/api/aps">Access Points</a> <code>GET /api/aps</code></li>
           <li><a href="/api/clients">Clients</a> <code>GET /api/clients</code></li>
@@ -141,6 +145,7 @@ const start = async () => {
         sites: '/api/sites',
         siteDetail: '/api/sites/:id',
         loadDemoSites: '/api/sites/load-demo',
+        alerts: '/api/alerts',
         switches: '/api/switches',
         switchDetail: '/api/switches/:id',
         accessPoints: '/api/aps',
@@ -169,6 +174,7 @@ const start = async () => {
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
   app.use('/api/setup', createSetupRouter({ setupStore }));
   app.use('/api/sites', createSitesRouter({ siteStore, fortiGateClient }));
+  app.use('/api/alerts', createAlertsRouter({ alertService }));
   app.use('/api/switches', createSwitchesRouter({ siteStore, fortiGateClient }));
   app.use('/api/aps', createApsRouter({ siteStore, fortiGateClient }));
   app.use('/api/clients', createClientsRouter({ siteStore, fortiGateClient }));

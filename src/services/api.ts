@@ -1,5 +1,5 @@
 import { accessPoints, alerts, bandwidthUsage, clients, deviceProfiles, eventLogs, firmwareStatuses, portProfiles, switches as demoSwitches, vlanProfiles } from '@/mocks/data';
-import type { AccessPoint, Client, Site, SwitchDevice } from '@/types/models';
+import type { AccessPoint, Alert, Client, Site, SwitchDevice } from '@/types/models';
 
 const delay = async <T,>(data: T, timeout = 280) => new Promise<T>((resolve) => setTimeout(() => resolve(data), timeout));
 const resolveApiBaseUrl = () => {
@@ -56,12 +56,15 @@ const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
 };
 
 export const api = {
-  getDashboard: async () => {
+  getDashboard: async (siteId?: string | 'all') => {
+    const siteQuery = siteId && siteId !== 'all' ? `?siteId=${encodeURIComponent(siteId)}` : '';
     const sites = await jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites).catch(() => []);
-    const switches = await jsonRequest<{ switches: SwitchDevice[] }>('/api/switches').then((payload) => payload.switches).catch(() => demoSwitches);
-    const liveAccessPoints = await jsonRequest<{ accessPoints: AccessPoint[] }>('/api/aps').then((payload) => payload.accessPoints).catch(() => accessPoints);
-    const liveClients = await jsonRequest<{ clients: Client[] }>('/api/clients').then((payload) => payload.clients).catch(() => clients);
-    return delay({ sites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts, firmwareStatuses, bandwidthUsage });
+    const filteredSites = siteId && siteId !== 'all' ? sites.filter((site) => site.id === siteId) : sites;
+    const switches = await jsonRequest<{ switches: SwitchDevice[] }>(`/api/switches${siteQuery}`).then((payload) => payload.switches).catch(() => demoSwitches);
+    const liveAccessPoints = await jsonRequest<{ accessPoints: AccessPoint[] }>(`/api/aps${siteQuery}`).then((payload) => payload.accessPoints).catch(() => accessPoints);
+    const liveClients = await jsonRequest<{ clients: Client[] }>(`/api/clients${siteQuery}`).then((payload) => payload.clients).catch(() => clients);
+    const liveAlerts = await jsonRequest<{ alerts: Alert[] }>(`/api/alerts${siteQuery}`).then((payload) => payload.alerts).catch(() => alerts);
+    return delay({ sites: filteredSites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts: liveAlerts, firmwareStatuses, bandwidthUsage });
   },
   getSites: async () => jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites),
   getSiteById: async (id: string) => jsonRequest<{ site: Site }>(`/api/sites/${id}`).then((payload) => payload.site),
@@ -106,7 +109,21 @@ export const api = {
     jsonRequest<{ clients: Client[] }>(
       siteId && siteId !== 'all' ? `/api/clients?siteId=${encodeURIComponent(siteId)}` : '/api/clients',
     ).then((payload) => payload.clients),
-  getAlerts: async () => delay(alerts),
+  getAlerts: async (options?: {
+    siteId?: string | 'all';
+    severity?: 'all' | 'critical' | 'warning' | 'info';
+    hours?: number;
+  }) => {
+    const search = new URLSearchParams();
+    if (options?.siteId && options.siteId !== 'all') search.set('siteId', options.siteId);
+    if (options?.severity && options.severity !== 'all') search.set('severity', options.severity);
+    if (options?.hours) search.set('hours', String(options.hours));
+
+    const query = search.toString();
+    return jsonRequest<{ alerts: Alert[] }>(`/api/alerts${query ? `?${query}` : ''}`)
+      .then((payload) => payload.alerts)
+      .catch(() => delay(alerts));
+  },
   getFirmwareStatuses: async () => delay(firmwareStatuses),
   getProfiles: async () => delay({ deviceProfiles, vlanProfiles, portProfiles }),
   getEventLogsByTarget: async (targetId: string) => delay(eventLogs.filter((entry) => entry.targetId === targetId)),
