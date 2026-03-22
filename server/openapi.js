@@ -65,6 +65,14 @@ const examples = {
     adminUsername: 'admin',
     adminPassword: 'replace-if-needed',
   },
+  siteUpdateRequest: {
+    name: 'Denver Branch',
+    address: '1801 California St, Denver, CO',
+    timezone: 'America/Denver',
+    region: 'Mountain',
+    fortigateName: 'DEN-BRANCH-FGT',
+    fortigateIp: '192.0.2.14',
+  },
   siteList: {
     sites: [
       {
@@ -468,6 +476,21 @@ const components = {
         adminPassword: { type: 'string', example: 'replace-if-needed' },
       },
       example: examples.siteCreateRequest,
+    },
+    SiteUpdateRequest: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Denver Branch' },
+        address: { type: 'string', example: '1801 California St, Denver, CO' },
+        timezone: { type: 'string', example: 'America/Denver' },
+        region: { type: 'string', example: 'Mountain' },
+        fortigateName: { type: 'string', example: 'DEN-BRANCH-FGT' },
+        fortigateIp: { type: 'string', example: '192.0.2.14' },
+        fortigateApiKey: { type: 'string', example: 'replace-only-when-rotating-the-key' },
+        adminUsername: { type: 'string', example: 'admin' },
+        adminPassword: { type: 'string', example: 'replace-if-needed' },
+      },
+      example: examples.siteUpdateRequest,
     },
     SwitchPort: {
       type: 'object',
@@ -954,6 +977,104 @@ export const createOpenApiDocument = ({ port }) => ({
                 },
               },
             },
+          },
+          404: {
+            description: 'Site not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                examples: {
+                  default: {
+                    value: { error: 'Site not found' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      patch: {
+        tags: ['Sites'],
+        summary: 'Update site',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/SiteUpdateRequest' },
+              examples: {
+                default: {
+                  value: examples.siteUpdateRequest,
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Updated site detail',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    site: { $ref: '#/components/schemas/Site' },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: 'Validation error',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                examples: {
+                  default: {
+                    value: { error: 'name, address, timezone, and region cannot be empty when provided' },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'Site not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                examples: {
+                  default: {
+                    value: { error: 'Site not found' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Sites'],
+        summary: 'Delete site',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        responses: {
+          204: {
+            description: 'Site deleted',
           },
           404: {
             description: 'Site not found',

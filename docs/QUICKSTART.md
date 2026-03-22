@@ -49,6 +49,7 @@ Only run this if you want the local backend running too:
 
 ```bash
 npm run server
+```
 
 With the backend running, open `/sites` and use `Add Site` to enter:
 
@@ -62,8 +63,9 @@ With the backend running, open `/sites` and use `Add Site` to enter:
 
 The backend generates a shorthand site id like `site-den` automatically and then polls the FortiGate for a live summary.
 
+You can later edit or delete a site directly from the Sites page. That is the preferred workflow over editing `data/sites.sqlite` by hand while the API is running.
+
 If you want sample locations instead, use `Load Demo Data` from the Sites page.
-```
 
 ## Build
 
@@ -144,3 +146,4 @@ To connect real backend APIs later:
 - Theme switching is already wired in.
 - Role switching is mocked for `super_admin`, `site_admin`, and `read_only`.
 - Device actions like reboot and blink LED are simulated through the service layer.
+- The optional site admin username/password fields are reserved for future SSH or CLI-assisted collection and are not used by the current REST polling flow.

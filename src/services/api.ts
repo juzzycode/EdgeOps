@@ -48,6 +48,10 @@ const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
     throw new Error(payload?.error ?? `Request failed with status ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 };
 
@@ -72,6 +76,20 @@ export const api = {
     adminUsername?: string;
     adminPassword?: string;
   }) => jsonRequest<{ site: Site }>('/api/sites', { method: 'POST', body: JSON.stringify(payload) }).then((payload) => payload.site),
+  updateSite: async (id: string, payload: Partial<{
+    name: string;
+    address: string;
+    timezone: string;
+    region: string;
+    fortigateName: string;
+    fortigateIp: string;
+    fortigateApiKey: string;
+    adminUsername: string;
+    adminPassword: string;
+  }>) => jsonRequest<{ site: Site }>(`/api/sites/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) }).then((payload) => payload.site),
+  deleteSite: async (id: string) => {
+    await jsonRequest<unknown>(`/api/sites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
   loadDemoSites: async () => jsonRequest<{ sites: Site[] }>('/api/sites/load-demo', { method: 'POST' }).then((payload) => payload.sites),
   getSwitches: async (siteId?: string | 'all') =>
     jsonRequest<{ switches: SwitchDevice[] }>(

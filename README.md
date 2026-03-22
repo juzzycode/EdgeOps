@@ -42,6 +42,7 @@ npm run server
 
 The backend automatically reads `.env` for `EDGEOPS_PORT`, `EDGEOPS_DB_PATH`, and `EDGEOPS_SECRET`.
 Sites are now onboarded from the UI with an Add Site wizard under `/sites`, where you can enter the site metadata plus FortiGate connection details.
+Sites can also be edited or deleted from the Sites UI, which is the preferred way to manage them because the backend keeps the SQLite file in memory while it is running.
 If your frontend cannot reach the backend on the same origin, set `VITE_API_BASE_URL`, for example `VITE_API_BASE_URL=http://192.168.1.10:18787`.
 If you accidentally use `http://localhost:18787` while opening the UI from another device, the frontend now rewrites that to the current browser host automatically.
 The backend also allows cross-origin requests by default for this flow.
@@ -101,6 +102,7 @@ npm run build
 ## Real API Integration Seams
 
 - Site onboarding and FortiGate summaries already flow through `server/routes/sites.js` and `src/services/api.ts`.
+- Site records support create, edit, and delete flows through the same `/api/sites` backend.
 - Expand the FortiGate client in `server/lib/fortigate-client.js` with more endpoints as device inventory moves off mock data.
 - Use `server/index.js` plus the SQLite-backed gateway cache for real firewall or gateway config retrieval.
 - Keep page components unchanged where possible by preserving return shapes from the mock service layer.
@@ -114,3 +116,4 @@ npm run build
 - Mock device actions like reboot, blink LED, port toggle, and profile assignment are routed through a service function so they can later call backend command endpoints.
 - Tables, drawers, summary panels, and charts are reusable and structured for future expansion.
 - Gateway config caching is documented in `docs/GATEWAYS.md`.
+- The optional site admin username/password fields are stored today but not used for polling yet. They are reserved for future SSH or CLI-assisted collection flows, such as commands that can expose live PoE draw not present in the current REST endpoints.

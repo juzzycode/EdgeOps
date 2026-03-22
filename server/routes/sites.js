@@ -105,5 +105,44 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
     response.json({ site: await fortiGateClient.summarizeSite(site) });
   });
 
+  router.patch('/:id', async (request, response) => {
+    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword } = request.body ?? {};
+    const existing = await siteStore.getSiteById(request.params.id);
+
+    if (!existing) {
+      response.status(404).json({ error: 'Site not found' });
+      return;
+    }
+
+    if ((name !== undefined && !String(name).trim()) || (address !== undefined && !String(address).trim()) || (timezone !== undefined && !String(timezone).trim()) || (region !== undefined && !String(region).trim())) {
+      response.status(400).json({ error: 'name, address, timezone, and region cannot be empty when provided' });
+      return;
+    }
+
+    const site = await siteStore.updateSite(request.params.id, {
+      name,
+      address,
+      timezone,
+      region,
+      fortigateName,
+      fortigateIp,
+      fortigateApiKey,
+      adminUsername,
+      adminPassword,
+    });
+
+    response.json({ site: await fortiGateClient.summarizeSite(site) });
+  });
+
+  router.delete('/:id', async (request, response) => {
+    const removed = await siteStore.deleteSite(request.params.id);
+    if (!removed) {
+      response.status(404).json({ error: 'Site not found' });
+      return;
+    }
+
+    response.status(204).send();
+  });
+
   return router;
 };

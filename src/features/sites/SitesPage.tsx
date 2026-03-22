@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { ArrowRight, BadgePlus, LoaderCircle, Server, Sparkles } from 'lucide-react';
+import { ArrowRight, BadgePlus, LoaderCircle, Pencil, Server, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/States';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Panel } from '@/components/common/Panel';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { SideDrawer } from '@/components/drawers/SideDrawer';
 import { api } from '@/services/api';
 import type { Site } from '@/types/models';
 
@@ -40,6 +41,9 @@ export const SitesPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
 
   const liveSites = useMemo(() => (sites ?? []).filter((site) => site.source !== 'demo'), [sites]);
   const demoSites = useMemo(() => (sites ?? []).filter((site) => site.source === 'demo'), [sites]);
@@ -90,6 +94,67 @@ export const SitesPage = () => {
       setError(requestError instanceof Error ? requestError.message : 'Unable to load demo data.');
     } finally {
       setLoadingDemo(false);
+    }
+  };
+
+  const beginEdit = (site: Site) => {
+    setEditingSite(site);
+    setForm({
+      name: site.name,
+      address: site.address,
+      timezone: site.timezone,
+      region: site.region,
+      fortigateName: site.fortigateName || '',
+      fortigateIp: site.fortigateIp || '',
+      fortigateApiKey: '',
+      adminUsername: '',
+      adminPassword: '',
+    });
+  };
+
+  const handleUpdateSite = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingSite) return;
+
+    setSavingEdit(true);
+    setError(null);
+
+    try {
+      await api.updateSite(editingSite.id, {
+        ...form,
+        fortigateApiKey: form.fortigateApiKey.trim() ? form.fortigateApiKey : undefined,
+        adminUsername: form.adminUsername.trim() ? form.adminUsername : undefined,
+        adminPassword: form.adminPassword.trim() ? form.adminPassword : undefined,
+      });
+      setEditingSite(null);
+      setForm(defaultForm);
+      await refreshSites();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to update site.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteSite = async (site: Site) => {
+    if (!window.confirm(`Delete site "${site.name}"? This removes it from the live site database.`)) {
+      return;
+    }
+
+    setDeletingSiteId(site.id);
+    setError(null);
+
+    try {
+      await api.deleteSite(site.id);
+      if (editingSite?.id === site.id) {
+        setEditingSite(null);
+        setForm(defaultForm);
+      }
+      await refreshSites();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to delete site.');
+    } finally {
+      setDeletingSiteId(null);
     }
   };
 
@@ -212,6 +277,17 @@ export const SitesPage = () => {
                   <StatusBadge value={site.status} />
                 </div>
 
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2 text-sm text-text hover:bg-soft" onClick={() => beginEdit(site)} type="button">
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </button>
+                  <button className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger hover:bg-danger/15 disabled:opacity-60" disabled={deletingSiteId === site.id} onClick={() => handleDeleteSite(site)} type="button">
+                    {deletingSiteId === site.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Delete
+                  </button>
+                </div>
+
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <MiniStat label="Switches" value={site.switchCount} />
                   <MiniStat label="APs" value={site.apCount} />
@@ -240,6 +316,61 @@ export const SitesPage = () => {
           </div>
         </>
       )}
+
+      <SideDrawer
+        open={Boolean(editingSite)}
+        title={editingSite ? `Edit ${editingSite.name}` : ''}
+        subtitle="Update site metadata or FortiGate connection settings without touching the SQLite file directly."
+        onClose={() => {
+          setEditingSite(null);
+          setForm(defaultForm);
+        }}
+      >
+        {editingSite ? (
+          <form className="grid gap-4" onSubmit={handleUpdateSite}>
+            <Field label="Site Name" required>
+              <input className={inputClassName} onChange={(event) => handleChange('name', event.target.value)} value={form.name} />
+            </Field>
+            <Field label="Address" required>
+              <input className={inputClassName} onChange={(event) => handleChange('address', event.target.value)} value={form.address} />
+            </Field>
+            <Field label="Timezone" required>
+              <input className={inputClassName} onChange={(event) => handleChange('timezone', event.target.value)} value={form.timezone} />
+            </Field>
+            <Field label="Region" required>
+              <select className={inputClassName} onChange={(event) => handleChange('region', event.target.value)} value={form.region}>
+                <option>Central</option>
+                <option>East</option>
+                <option>Mountain</option>
+                <option>West</option>
+                <option>International</option>
+              </select>
+            </Field>
+            <Field label="FortiGate Name">
+              <input className={inputClassName} onChange={(event) => handleChange('fortigateName', event.target.value)} value={form.fortigateName} />
+            </Field>
+            <Field label="FortiGate IP">
+              <input className={inputClassName} onChange={(event) => handleChange('fortigateIp', event.target.value)} value={form.fortigateIp} />
+            </Field>
+            <Field label="FortiGate API Key">
+              <input className={inputClassName} onChange={(event) => handleChange('fortigateApiKey', event.target.value)} placeholder="Leave blank to keep the current key" type="password" value={form.fortigateApiKey} />
+            </Field>
+            <Field label="Admin Username">
+              <input className={inputClassName} onChange={(event) => handleChange('adminUsername', event.target.value)} placeholder="Optional future SSH/CLI use" value={form.adminUsername} />
+            </Field>
+            <Field label="Admin Password">
+              <input className={inputClassName} onChange={(event) => handleChange('adminPassword', event.target.value)} placeholder="Optional future SSH/CLI use" type="password" value={form.adminPassword} />
+            </Field>
+            <div className="rounded-2xl bg-soft px-4 py-3 text-sm text-muted">
+              The generated shorthand id stays stable after creation so links and device ids do not churn when you rename a site.
+            </div>
+            <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70" disabled={savingEdit} type="submit">
+              {savingEdit ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+              Save Changes
+            </button>
+          </form>
+        ) : null}
+      </SideDrawer>
     </div>
   );
 };

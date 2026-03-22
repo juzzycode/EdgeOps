@@ -120,6 +120,55 @@ export const createSiteStore = ({ db }) => ({
     return this.getSiteById(row.id);
   },
 
+  async updateSite(id, input) {
+    const current = await this.getSiteById(id);
+    if (!current) return null;
+
+    const row = {
+      ...current,
+      name: input.name ?? current.name,
+      address: input.address ?? current.address,
+      timezone: input.timezone ?? current.timezone,
+      region: input.region ?? current.region,
+      fortigate_name: input.fortigateName ?? current.fortigate_name,
+      fortigate_ip: input.fortigateIp ?? current.fortigate_ip,
+      fortigate_api_key: input.fortigateApiKey ?? current.fortigate_api_key,
+      admin_username: input.adminUsername ?? current.admin_username,
+      admin_password: input.adminPassword ?? current.admin_password,
+      updated_at: nowIso(),
+    };
+
+    await db.run(
+      `
+        UPDATE sites
+        SET name = ?, address = ?, timezone = ?, region = ?, fortigate_name = ?, fortigate_ip = ?,
+            fortigate_api_key = ?, admin_username = ?, admin_password = ?, updated_at = ?
+        WHERE id = ?
+      `,
+      row.name,
+      row.address,
+      row.timezone,
+      row.region,
+      row.fortigate_name,
+      row.fortigate_ip,
+      row.fortigate_api_key,
+      row.admin_username,
+      row.admin_password,
+      row.updated_at,
+      id,
+    );
+
+    return this.getSiteById(id);
+  },
+
+  async deleteSite(id) {
+    const current = await this.getSiteById(id);
+    if (!current) return false;
+
+    await db.run(`DELETE FROM sites WHERE id = ?`, id);
+    return true;
+  },
+
   async updateLatencyCache(id, latency) {
     await db.run(
       `

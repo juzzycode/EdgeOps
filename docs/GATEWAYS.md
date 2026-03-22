@@ -75,6 +75,10 @@ If `EDGEOPS_SECRET` is not set, keys fall back to local base64 encoding so devel
 
 `GET /api/sites/:id`
 
+`PATCH /api/sites/:id`
+
+`DELETE /api/sites/:id`
+
 `POST /api/sites/load-demo`
 
 Example create-site body:
@@ -92,6 +96,11 @@ Example create-site body:
   "adminPassword": "replace-if-needed"
 }
 ```
+
+Notes:
+
+- The generated shorthand site id stays stable after creation even if you rename the site later.
+- `adminUsername` and `adminPassword` are currently stored only as optional future SSH/CLI credentials. They are not used by the current FortiGate REST polling flow.
 
 ### Setup Compatibility
 
@@ -186,6 +195,11 @@ npm run server
 ```
 
 The server automatically loads values from `.env` in the project root.
+
+Important:
+
+- Use the site edit/delete API or UI while the server is running.
+- Avoid editing `data/sites.sqlite` manually until the API is stopped, because the in-memory database will otherwise overwrite on-disk changes during the next write.
 
 ## Production Recommendations
 
