@@ -40,10 +40,12 @@ const requestFortiGate = (url, apiKey, options = {}) =>
     let settled = false;
     const method = options.method || 'GET';
     const body = options.body;
+    const serializedBody =
+      body === undefined || body === null ? null : typeof body === 'string' ? body : JSON.stringify(body);
     const headers = {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(serializedBody ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(serializedBody) } : {}),
       ...(options.headers ?? {}),
     };
     const request = https.request(
@@ -96,8 +98,8 @@ const requestFortiGate = (url, apiKey, options = {}) =>
       settled = true;
       reject(error);
     });
-    if (body) {
-      request.write(typeof body === 'string' ? body : JSON.stringify(body));
+    if (serializedBody) {
+      request.write(serializedBody);
     }
     request.end();
   });
