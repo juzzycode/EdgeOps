@@ -9,21 +9,25 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { DataTable, type Column } from '@/components/tables/DataTable';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
-import type { FirmwareStatus } from '@/types/models';
+import type { FirmwareStatus, Site } from '@/types/models';
 
 export const FirmwarePage = () => {
   const [rows, setRows] = useState<FirmwareStatus[] | null>(null);
+  const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [complianceFilter, setComplianceFilter] = useState<'all' | 'compliant' | 'pending' | 'blocked'>('all');
   const { selectedSiteId } = useAppStore();
 
   useEffect(() => {
     setError(null);
-    api
-      .getFirmwareStatuses(selectedSiteId)
-      .then(setRows)
+    Promise.all([api.getFirmwareStatuses(selectedSiteId), api.getSites()])
+      .then(([firmwareRows, siteRows]) => {
+        setRows(firmwareRows);
+        setSites(siteRows);
+      })
       .catch((requestError) => {
         setRows([]);
+        setSites([]);
         setError(requestError instanceof Error ? requestError.message : 'Unable to load firmware posture');
       });
   }, [selectedSiteId]);
@@ -43,6 +47,18 @@ export const FirmwarePage = () => {
     if (!rows) return [];
     return rows.filter((row) => (complianceFilter === 'all' ? true : row.compliance === complianceFilter));
   }, [rows, complianceFilter]);
+
+  const scopedSites = useMemo(() => {
+    if (selectedSiteId && selectedSiteId !== 'all') {
+      return sites.filter((site) => site.id === selectedSiteId);
+    }
+    return sites;
+  }, [selectedSiteId, sites]);
+
+  const sitesWithoutFirmware = useMemo(() => {
+    const siteIdsWithFirmware = new Set(rows?.map((row) => row.siteId).filter(Boolean));
+    return scopedSites.filter((site) => !siteIdsWithFirmware.has(site.id));
+  }, [rows, scopedSites]);
 
   if (!rows) return <LoadingState label="Loading firmware view..." />;
 
@@ -133,6 +149,23 @@ export const FirmwarePage = () => {
           )}
         </Panel>
       </div>
+      {sitesWithoutFirmware.length ? (
+        <Panel title="Sites Without Firmware Rows" subtitle="These sites are in scope, but no switch or AP firmware rows were returned for them.">
+          <div className="space-y-3">
+            {sitesWithoutFirmware.map((site) => (
+              <div key={site.id} className="rounded-3xl border border-border bg-soft p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-text">{site.name}</p>
+                  <span className="text-xs text-muted">{site.region}</span>
+                </div>
+                <p className="mt-2 text-sm text-muted">
+                  No managed switch or AP firmware rows were returned for this site in the current scope.
+                </p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
     </div>
   );
 };
