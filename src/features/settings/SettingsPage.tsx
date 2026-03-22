@@ -151,11 +151,23 @@ export const SettingsPage = () => {
 
   const canManageUsers = role === 'super_admin';
   const visibleSites = sessionUser?.siteId ? (sites ?? []).filter((site) => site.id === sessionUser.siteId) : sites ?? [];
+  const scopedRoleSelected = userForm.role !== 'super_admin';
 
   if (!sites) return <LoadingState label="Loading settings workspace..." />;
 
   const handleUserFormChange = (field: keyof UserFormState, value: string) => {
-    setUserForm((current) => ({ ...current, [field]: value }));
+    setUserForm((current) => {
+      if (field === 'role') {
+        const nextRole = value as Role;
+        return {
+          ...current,
+          role: nextRole,
+          siteId: nextRole === 'super_admin' ? '' : current.siteId,
+        };
+      }
+
+      return { ...current, [field]: value };
+    });
   };
 
   const resetUserForm = () => {
@@ -379,7 +391,9 @@ export const SettingsPage = () => {
                       <div>
                         <p className="font-semibold text-text">{user.username}</p>
                         <p className="mt-1 text-sm capitalize text-muted">{user.role.replace('_', ' ')}</p>
-                        <p className="mt-2 text-sm text-muted">Scope: {user.siteName ?? user.siteId ?? 'All sites'}</p>
+                        <p className="mt-2 text-sm text-muted">
+                          Scope: {user.role === 'super_admin' ? 'All sites (global access)' : user.siteName ?? user.siteId ?? 'All sites'}
+                        </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button className="focus-ring rounded-2xl border border-border bg-surface px-3 py-2 text-sm text-text hover:bg-canvas" onClick={() => beginEditUser(user)} type="button">
@@ -414,8 +428,13 @@ export const SettingsPage = () => {
                 </select>
               </Field>
               <Field label="Assigned Site">
-                <select className={inputClassName} onChange={(event) => handleUserFormChange('siteId', event.target.value)} value={userForm.siteId}>
-                  <option value="">All visible sites</option>
+                <select
+                  className={`${inputClassName} disabled:cursor-not-allowed disabled:opacity-70`}
+                  disabled={!scopedRoleSelected}
+                  onChange={(event) => handleUserFormChange('siteId', event.target.value)}
+                  value={scopedRoleSelected ? userForm.siteId : ''}
+                >
+                  <option value="">{scopedRoleSelected ? 'All visible sites' : 'Not used for super admins'}</option>
                   {sites.map((site) => (
                     <option key={site.id} value={site.id}>
                       {site.name}
@@ -423,6 +442,12 @@ export const SettingsPage = () => {
                   ))}
                 </select>
               </Field>
+
+              <div className="rounded-2xl bg-soft px-4 py-3 text-sm text-muted">
+                {scopedRoleSelected
+                  ? 'Assign a site to lock this user to a single location. If left blank, this scoped role can still see all available sites.'
+                  : 'Super admins are always global, so assigned site is not stored for that role.'}
+              </div>
 
               <div className="flex flex-wrap gap-3">
                 <button className="focus-ring inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70" disabled={savingUser} type="submit">

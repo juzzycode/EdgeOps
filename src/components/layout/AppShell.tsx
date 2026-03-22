@@ -57,9 +57,13 @@ export const AppShell = ({ children }: PropsWithChildren) => {
     }
   }, [sessionUser?.siteId, setSelectedSiteId]);
 
-  const selectedSiteName =
-    selectedSiteId === 'all' ? 'All sites' : sites.find((site) => site.id === selectedSiteId)?.name ?? 'Scoped site';
   const visibleSites = sessionUser?.siteId ? sites.filter((site) => site.id === sessionUser.siteId) : sites;
+  const selectedSiteName =
+    sessionUser?.siteId
+      ? visibleSites[0]?.name ?? 'Scoped site'
+      : selectedSiteId === 'all'
+        ? 'All sites'
+        : sites.find((site) => site.id === selectedSiteId)?.name ?? 'Scoped site';
 
   const goToSettings = () => {
     setProfileMenuOpen(false);
@@ -159,7 +163,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                   className="focus-ring rounded-2xl border border-border bg-soft px-4 py-3 text-sm text-text disabled:cursor-not-allowed disabled:opacity-70"
                   disabled={Boolean(sessionUser?.siteId)}
                 >
-                  <option value="all">All sites</option>
+                  {!sessionUser?.siteId ? <option value="all">All sites</option> : null}
                   {visibleSites.map((site) => (
                     <option key={site.id} value={site.id}>
                       {site.name}
