@@ -48,7 +48,8 @@ const requestJson = (url, apiKey) =>
     request.setTimeout(fortiGateRequestTimeoutMs, () => {
       if (settled) return;
       settled = true;
-      request.destroy(new Error(`FortiGate request timed out after ${fortiGateRequestTimeoutMs / 1000}s`));
+      reject(new Error(`FortiGate request timed out after ${fortiGateRequestTimeoutMs / 1000}s`));
+      request.destroy();
     });
 
     request.on('error', (error) => {
