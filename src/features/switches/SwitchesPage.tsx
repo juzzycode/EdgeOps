@@ -7,7 +7,7 @@ import { Panel } from '@/components/common/Panel';
 import { ErrorState, LoadingState } from '@/components/common/States';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { DataTable, type Column } from '@/components/tables/DataTable';
-import { cn, formatBytes, formatRelativeTime } from '@/lib/utils';
+import { cn, formatBytes, formatRelativeTime, formatWatts } from '@/lib/utils';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import type { Site, SwitchDevice } from '@/types/models';
@@ -67,7 +67,7 @@ export const SwitchesPage = () => {
     { key: 'status', header: 'Status', render: (item) => <StatusBadge value={item.status} /> },
     { key: 'firmware', header: 'Firmware', render: (item) => `${item.firmware} / ${item.targetFirmware}` },
     { key: 'ports', header: 'Ports Used', render: (item) => `${item.portsUsed}/${item.totalPorts}` },
-    { key: 'poe', header: 'PoE Usage', render: (item) => `${item.poeUsageWatts}W / ${item.poeBudgetWatts}W` },
+    { key: 'poe', header: 'PoE Usage', render: (item) => `${formatWatts(item.poeUsageWatts)} / ${formatWatts(item.poeBudgetWatts)}` },
     {
       key: 'bandwidth',
       header: 'Bandwidth Comparison',

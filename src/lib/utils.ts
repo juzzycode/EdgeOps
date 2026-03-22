@@ -49,6 +49,10 @@ export const formatBytes = (value: number) => {
 
   return `${size.toFixed(size >= 100 ? 0 : size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
 };
+export const formatWatts = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '0.0W';
+  return `${value.toFixed(1)}W`;
+};
 export const formatDuration = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds < 0) return 'N/A';
   if (seconds < 60) return `${Math.round(seconds)}s`;

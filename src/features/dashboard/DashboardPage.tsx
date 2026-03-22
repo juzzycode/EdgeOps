@@ -10,7 +10,7 @@ import { TopologyCanvas } from '@/components/data-display/TopologyCanvas';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
-import { formatNumber, formatRelativeTime } from '@/lib/utils';
+import { formatNumber, formatRelativeTime, formatWatts } from '@/lib/utils';
 import type { TopologyGraph } from '@/types/models';
 
 export const DashboardPage = () => {
@@ -131,7 +131,7 @@ export const DashboardPage = () => {
             <SignalRow label="Firmware compliant" value={`${compliant}/${data.firmwareStatuses.length}`} icon={Activity} />
             <SignalRow label="Reachable sites" value={`${reachableSites}/${data.sites.length}`} icon={Building2} />
             <SignalRow label="Average WAN latency" value={Number.isFinite(averageLatency) ? `${averageLatency.toFixed(1)} ms` : 'Unavailable'} icon={Network} />
-            <SignalRow label="PoE budget" value={`${totalPoeDraw}W / ${totalPoeBudget}W`} icon={Network} />
+            <SignalRow label="PoE budget" value={`${formatWatts(totalPoeDraw)} / ${formatWatts(totalPoeBudget)}`} icon={Network} />
             <SignalRow label="Top SSIDs" value={topSsids.join(', ') || 'No active SSIDs'} icon={RadioTower} />
           </div>
         </Panel>

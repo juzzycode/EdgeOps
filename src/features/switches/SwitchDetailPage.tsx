@@ -13,7 +13,7 @@ import { PortMap } from '@/components/data-display/PortMap';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import type { EventLog, SwitchDevice, SwitchPort, SwitchVlanOption } from '@/types/models';
-import { formatBytes, formatRelativeTime } from '@/lib/utils';
+import { formatBytes, formatRelativeTime, formatWatts } from '@/lib/utils';
 
 export const SwitchDetailPage = () => {
   const { id = '' } = useParams();
@@ -99,7 +99,7 @@ export const SwitchDetailPage = () => {
             <SummaryItem label="Firmware" value={`${device.firmware} target ${device.targetFirmware}`} />
             <SummaryItem label="Ports Used" value={`${device.portsUsed} of ${device.totalPorts}`} />
             <SummaryItem label="Uplink" value={device.uplinkStatus} />
-            <SummaryItem label="PoE Budget" value={`${device.poeUsageWatts}W / ${device.poeBudgetWatts}W`} />
+            <SummaryItem label="PoE Budget" value={`${formatWatts(device.poeUsageWatts)} / ${formatWatts(device.poeBudgetWatts)}`} />
             <SummaryItem label="Last Seen" value={formatRelativeTime(device.lastSeen)} />
           </div>
           <div className="mt-4 rounded-2xl bg-soft p-4">
@@ -130,7 +130,7 @@ export const SwitchDetailPage = () => {
                   <div><p className="font-medium text-text">{formatPortLabel(port.portNumber)}</p><p className="text-xs text-muted">{port.description}</p></div>
                   <StatusBadge value={port.status === 'up' ? 'healthy' : port.status === 'warning' ? 'warning' : 'inactive'} />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted"><span>{port.vlan}</span><span>{formatPoe(port.poeWatts)}{port.poeState ? ` • ${port.poeState}` : ' PoE'}</span></div>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted"><span>{port.vlan}</span><span>{formatWatts(port.poeWatts)}{port.poeState ? ` • ${port.poeState}` : ' PoE'}</span></div>
                 <div className="mt-2 flex items-center justify-between text-xs text-muted">
                   <span>RX {formatBytes(port.stats?.rxBytes ?? 0)}</span>
                   <span>TX {formatBytes(port.stats?.txBytes ?? 0)}</span>
@@ -226,8 +226,6 @@ const SummaryItem = ({ label, value }: { label: string; value: ReactNode }) => (
 );
 
 const formatPortLabel = (value: string) => (value.toLowerCase().startsWith('port') ? value : `Port ${value}`);
-const formatPoe = (value: number) => `${value.toFixed(value >= 10 || Number.isInteger(value) ? 0 : 1)}W`;
-
 const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block">
     <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">{label}</span>
