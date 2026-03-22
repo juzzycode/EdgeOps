@@ -602,6 +602,7 @@ const applyUplinkHeuristics = (ports) => {
 
 const buildSwitchId = (siteId, serial) => `${siteId}--${serial}`;
 const buildApId = (siteId, serial) => `${siteId}--${serial}`;
+const buildRogueApId = (siteId, bssid, ssid) => `${siteId}--rogue--${bssid || ssid || 'unknown'}`;
 
 const mapManagedSwitch = (site, item, statsByPort = {}) => {
   const serial = extractStatusField(item, ['sn', 'serial', 'switch-id']) || 'unknown-switch';
@@ -980,6 +981,30 @@ export const createFortiGateClient = ({ siteStore }) => ({
         apNames,
       ),
     );
+  },
+
+  async listRogueAccessPointsForSite(site) {
+    if (site.is_demo || !site.fortigate_ip || !site.fortigate_api_key) {
+      return [];
+    }
+
+    const payload = await requestJson(
+      `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/ap-status`,
+      site.fortigate_api_key,
+    );
+
+    const entries = Array.isArray(payload.results) ? payload.results : [];
+    return entries.map((item) => ({
+      id: buildRogueApId(site.id, item.bssid || '', item.ssid || ''),
+      siteId: site.id,
+      ssid: item.ssid || 'Unknown SSID',
+      bssid: item.bssid || 'Unknown BSSID',
+      status: ['rogue', 'accepted', 'suppressed'].includes(String(item.status || '').toLowerCase())
+        ? String(item.status).toLowerCase()
+        : 'unknown',
+      detectedBy: item.ap_name || item.detected_by || undefined,
+      vendor: item.vendor || item.vendor_info || undefined,
+    }));
   },
 
   async getManagedAccessPointDetailForSite(site, accessPointId) {

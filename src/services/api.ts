@@ -1,5 +1,5 @@
 import { accessPoints, alerts, bandwidthUsage, clients, deviceProfiles, eventLogs, firmwareStatuses, portProfiles, switches as demoSwitches, vlanProfiles } from '@/mocks/data';
-import type { AccessPoint, Alert, Client, Site, SwitchDevice } from '@/types/models';
+import type { AccessPoint, Alert, BandwidthPoint, Client, RogueAccessPoint, Site, SwitchDevice } from '@/types/models';
 
 const delay = async <T,>(data: T, timeout = 280) => new Promise<T>((resolve) => setTimeout(() => resolve(data), timeout));
 const resolveApiBaseUrl = () => {
@@ -25,6 +25,25 @@ const resolveApiBaseUrl = () => {
 
 const apiBaseUrl = resolveApiBaseUrl();
 const withApiBase = (input: string) => `${apiBaseUrl}${input}`;
+
+const deriveBandwidthUsage = (accessPointInventory: AccessPoint[]): BandwidthPoint[] => {
+  const points = accessPointInventory
+    .map((accessPoint) => {
+      const clients = accessPoint.clientDevices ?? [];
+      const inbound = clients.reduce((sum, client) => sum + (client.rxRateMbps ?? 0), 0);
+      const outbound = clients.reduce((sum, client) => sum + (client.txRateMbps ?? 0), 0);
+      return {
+        interval: accessPoint.name,
+        inbound,
+        outbound,
+      };
+    })
+    .filter((point) => point.inbound > 0 || point.outbound > 0)
+    .sort((left, right) => right.inbound + right.outbound - (left.inbound + left.outbound))
+    .slice(0, 6);
+
+  return points.length ? points : bandwidthUsage;
+};
 
 const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
   let response: Response;
@@ -64,7 +83,9 @@ export const api = {
     const liveAccessPoints = await jsonRequest<{ accessPoints: AccessPoint[] }>(`/api/aps${siteQuery}`).then((payload) => payload.accessPoints).catch(() => accessPoints);
     const liveClients = await jsonRequest<{ clients: Client[] }>(`/api/clients${siteQuery}`).then((payload) => payload.clients).catch(() => clients);
     const liveAlerts = await jsonRequest<{ alerts: Alert[] }>(`/api/alerts${siteQuery}`).then((payload) => payload.alerts).catch(() => alerts);
-    return delay({ sites: filteredSites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts: liveAlerts, firmwareStatuses, bandwidthUsage });
+    const liveFirmwareStatuses = await jsonRequest<{ firmware: typeof firmwareStatuses }>(`/api/firmware${siteQuery}`).then((payload) => payload.firmware).catch(() => firmwareStatuses);
+    const liveBandwidthUsage = deriveBandwidthUsage(liveAccessPoints);
+    return delay({ sites: filteredSites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts: liveAlerts, firmwareStatuses: liveFirmwareStatuses, bandwidthUsage: liveBandwidthUsage });
   },
   getSites: async () => jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites),
   getSiteById: async (id: string) => jsonRequest<{ site: Site }>(`/api/sites/${id}`).then((payload) => payload.site),
@@ -103,6 +124,10 @@ export const api = {
     jsonRequest<{ accessPoints: AccessPoint[] }>(
       siteId && siteId !== 'all' ? `/api/aps?siteId=${encodeURIComponent(siteId)}` : '/api/aps',
     ).then((payload) => payload.accessPoints),
+  getRogueAps: async (siteId?: string | 'all') =>
+    jsonRequest<{ rogueAccessPoints: RogueAccessPoint[] }>(
+      siteId && siteId !== 'all' ? `/api/aps/rogues?siteId=${encodeURIComponent(siteId)}` : '/api/aps/rogues',
+    ).then((payload) => payload.rogueAccessPoints),
   getApById: async (id: string) =>
     jsonRequest<{ accessPoint: AccessPoint }>(`/api/aps/${encodeURIComponent(id)}`).then((payload) => payload.accessPoint),
   getClients: async (siteId?: string | 'all') =>

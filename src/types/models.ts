@@ -121,6 +121,16 @@ export interface AccessPoint {
   clientDevices?: AccessPointClient[];
 }
 
+export interface RogueAccessPoint {
+  id: string;
+  siteId: string;
+  ssid: string;
+  bssid: string;
+  status: 'rogue' | 'accepted' | 'suppressed' | 'unknown';
+  detectedBy?: string;
+  vendor?: string;
+}
+
 export interface AccessPointClient {
   id: string;
   name: string;

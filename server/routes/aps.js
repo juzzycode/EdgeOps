@@ -3,6 +3,25 @@ import express from 'express';
 export const createApsRouter = ({ siteStore, fortiGateClient }) => {
   const router = express.Router();
 
+  router.get('/rogues', async (request, response) => {
+    const requestedSiteId = typeof request.query.siteId === 'string' ? request.query.siteId : null;
+    const sites = requestedSiteId
+      ? [await siteStore.getSiteById(requestedSiteId)].filter(Boolean)
+      : await siteStore.listSites();
+
+    const rogueLists = await Promise.all(
+      sites.map(async (site) => ({
+        siteId: site.id,
+        rogueAccessPoints: await fortiGateClient.listRogueAccessPointsForSite(site).catch((error) => {
+          console.error(`[aps] Failed to load rogue APs for site ${site.id}:`, error);
+          return [];
+        }),
+      })),
+    );
+
+    response.json({ rogueAccessPoints: rogueLists.flatMap((entry) => entry.rogueAccessPoints) });
+  });
+
   router.get('/', async (request, response) => {
     const requestedSiteId = typeof request.query.siteId === 'string' ? request.query.siteId : null;
     const sites = requestedSiteId

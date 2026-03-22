@@ -10,10 +10,11 @@ import { DataTable, type Column } from '@/components/tables/DataTable';
 import { formatRelativeTime } from '@/lib/utils';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
-import type { AccessPoint, Site } from '@/types/models';
+import type { AccessPoint, RogueAccessPoint, Site } from '@/types/models';
 
 export const ApsPage = () => {
   const [aps, setAps] = useState<AccessPoint[] | null>(null);
+  const [rogueAps, setRogueAps] = useState<RogueAccessPoint[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -23,6 +24,7 @@ export const ApsPage = () => {
 
   useEffect(() => {
     api.getAps(selectedSiteId).then(setAps).catch(() => setAps([]));
+    api.getRogueAps(selectedSiteId).then(setRogueAps).catch(() => setRogueAps([]));
   }, [selectedSiteId]);
 
   useEffect(() => {
@@ -62,6 +64,33 @@ export const ApsPage = () => {
           <ActionButton className="min-w-36 justify-center" disabled={!canOperate}>Bulk Reboot ({selected.length})</ActionButton>
         </div>
         <DataTable data={filtered} columns={columns} keyExtractor={(item) => item.id} selectable selected={selected} onToggle={(id) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))} />
+      </Panel>
+
+      <Panel title="Rogue / Interfering APs" subtitle={`${rogueAps.length} entries reported by FortiGate rogue AP status when available`}>
+        {rogueAps.length ? (
+          <div className="overflow-hidden rounded-3xl border border-border">
+            <div className="grid grid-cols-[1.2fr_1.2fr_0.8fr_1fr_1fr] gap-3 bg-soft px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">
+              <span>SSID</span>
+              <span>BSSID</span>
+              <span>Status</span>
+              <span>Detected By</span>
+              <span>Site</span>
+            </div>
+            <div className="divide-y divide-border/70">
+              {rogueAps.map((entry) => (
+                <div key={entry.id} className="grid grid-cols-[1.2fr_1.2fr_0.8fr_1fr_1fr] gap-3 px-4 py-3 text-sm text-text">
+                  <span>{entry.ssid}</span>
+                  <span className="text-muted">{entry.bssid}</span>
+                  <span><StatusBadge value={entry.status === 'rogue' ? 'critical' : entry.status === 'accepted' ? 'healthy' : entry.status === 'suppressed' ? 'warning' : 'inactive'} /></span>
+                  <span>{entry.detectedBy || entry.vendor || 'Unknown'}</span>
+                  <span>{sites.find((site) => site.id === entry.siteId)?.name ?? entry.siteId}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-soft px-4 py-6 text-sm text-muted">No rogue or interfering AP entries were returned for the current site scope.</div>
+        )}
       </Panel>
     </div>
   );

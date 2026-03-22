@@ -33,6 +33,21 @@ export const DashboardPage = () => {
 
   const offlineCount = [...data.switches, ...data.accessPoints].filter((device) => device.status === 'offline').length;
   const compliant = data.firmwareStatuses.filter((row) => row.compliance === 'compliant').length;
+  const totalPoeBudget = data.switches.reduce((sum, device) => sum + device.poeBudgetWatts, 0);
+  const totalPoeDraw = data.switches.reduce((sum, device) => sum + device.poeUsageWatts, 0);
+  const averageLatency =
+    data.sites.filter((site) => typeof site.latencyAvgMs === 'number').reduce((sum, site) => sum + (site.latencyAvgMs ?? 0), 0) /
+    Math.max(1, data.sites.filter((site) => typeof site.latencyAvgMs === 'number').length);
+  const reachableSites = data.sites.filter((site) => site.apiReachable).length;
+  const ssidDistribution = [...data.accessPoints.flatMap((accessPoint) => accessPoint.clientDevices ?? [])]
+    .reduce<Record<string, number>>((accumulator, client) => {
+      accumulator[client.ssid] = (accumulator[client.ssid] ?? 0) + 1;
+      return accumulator;
+    }, {});
+  const topSsids = Object.entries(ssidDistribution)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 3)
+    .map(([name, count]) => `${name} ${count}`);
 
   return (
     <div className="space-y-6">
@@ -46,7 +61,7 @@ export const DashboardPage = () => {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <Panel title="Bandwidth Usage" subtitle="Mock service structure mirrors future REST-backed telemetry endpoints.">
+        <Panel title="Observed Throughput" subtitle="Current inbound and outbound Mbps derived from live AP client telemetry in the selected site scope.">
           <UsageAreaChart data={data.bandwidthUsage} />
         </Panel>
 
@@ -108,8 +123,10 @@ export const DashboardPage = () => {
           <div className="space-y-3">
             <SignalRow label="Offline devices" value={String(offlineCount)} icon={AlertTriangle} />
             <SignalRow label="Firmware compliant" value={`${compliant}/${data.firmwareStatuses.length}`} icon={Activity} />
-            <SignalRow label="PoE draw" value="671W / 1,480W" icon={Network} />
-            <SignalRow label="SSID distribution" value="Corp 60%, Guest 24%, Lab 16%" icon={RadioTower} />
+            <SignalRow label="Reachable sites" value={`${reachableSites}/${data.sites.length}`} icon={Building2} />
+            <SignalRow label="Average WAN latency" value={Number.isFinite(averageLatency) ? `${averageLatency.toFixed(1)} ms` : 'Unavailable'} icon={Network} />
+            <SignalRow label="PoE budget" value={`${totalPoeDraw}W / ${totalPoeBudget}W`} icon={Network} />
+            <SignalRow label="Top SSIDs" value={topSsids.join(', ') || 'No active SSIDs'} icon={RadioTower} />
           </div>
         </Panel>
       </div>

@@ -15,6 +15,7 @@ const examples = {
       switches: '/api/switches',
       switchDetail: '/api/switches/:id',
       accessPoints: '/api/aps',
+      rogueAccessPoints: '/api/aps/rogues',
       accessPointDetail: '/api/aps/:id',
       clients: '/api/clients',
       gateways: '/api/gateways',
@@ -210,6 +211,15 @@ const examples = {
         health: 'fair',
       },
     ],
+  },
+  rogueAccessPoint: {
+    id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--rogue--aa:bb:cc:dd:ee:ff',
+    siteId: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+    ssid: 'CoffeeShop WiFi',
+    bssid: 'aa:bb:cc:dd:ee:ff',
+    status: 'rogue',
+    detectedBy: '441k-Hallway',
+    vendor: 'Unknown',
   },
   managedClient: {
     id: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d--client--04:33:c2:66:72:72',
@@ -744,6 +754,19 @@ const components = {
         clientDevices: { type: 'array', items: { $ref: '#/components/schemas/AccessPointClient' } },
       },
       example: examples.managedAccessPoint,
+    },
+    RogueAccessPoint: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        siteId: { type: 'string' },
+        ssid: { type: 'string' },
+        bssid: { type: 'string' },
+        status: { type: 'string', enum: ['rogue', 'accepted', 'suppressed', 'unknown'] },
+        detectedBy: { type: 'string', nullable: true },
+        vendor: { type: 'string', nullable: true },
+      },
+      example: examples.rogueAccessPoint,
     },
     Client: {
       type: 'object',
@@ -1441,6 +1464,44 @@ export const createOpenApiDocument = ({ port }) => ({
                 examples: {
                   default: {
                     value: { accessPoints: [examples.managedAccessPoint] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/aps/rogues': {
+      get: {
+        tags: ['Access Points'],
+        summary: 'List rogue or interfering access points',
+        parameters: [
+          {
+            name: 'siteId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            example: 'site_0e7d6a46-0402-4d47-9f49-5623b122f27d',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Rogue access point list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    rogueAccessPoints: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/RogueAccessPoint' },
+                    },
+                  },
+                },
+                examples: {
+                  default: {
+                    value: { rogueAccessPoints: [examples.rogueAccessPoint] },
                   },
                 },
               },

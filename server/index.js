@@ -128,6 +128,7 @@ const start = async () => {
           <li><a href="/api/firmware">Firmware</a> <code>GET /api/firmware</code></li>
           <li><a href="/api/switches">Switches</a> <code>GET /api/switches</code></li>
           <li><a href="/api/aps">Access Points</a> <code>GET /api/aps</code></li>
+          <li><a href="/api/aps/rogues">Rogue APs</a> <code>GET /api/aps/rogues</code></li>
           <li><a href="/api/clients">Clients</a> <code>GET /api/clients</code></li>
           <li><a href="/api/gateways">Gateway list</a> <code>GET /api/gateways</code></li>
         </ul>
@@ -157,6 +158,7 @@ const start = async () => {
         switches: '/api/switches',
         switchDetail: '/api/switches/:id',
         accessPoints: '/api/aps',
+        rogueAccessPoints: '/api/aps/rogues',
         accessPointDetail: '/api/aps/:id',
         clients: '/api/clients',
         gateways: '/api/gateways',
