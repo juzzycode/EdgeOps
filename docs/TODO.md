@@ -92,3 +92,7 @@
 - Add in-app diagnostics for backend connectivity and FortiGate reachability.
 - Add CSV or JSON export for more inventory and history tables.
 - Add mobile-friendly pinned detail panels for hover-heavy views.
+
+## USERS
+
+- Add 1-to-many relationships on the SiteAdmin role.
