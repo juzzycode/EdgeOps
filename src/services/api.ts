@@ -1,7 +1,8 @@
 import { accessPoints, alerts, bandwidthUsage, clients, deviceProfiles, eventLogs, firmwareStatuses, portProfiles, switches as demoSwitches, vlanProfiles } from '@/mocks/data';
-import type { AccessPoint, Alert, BandwidthPoint, Client, RogueAccessPoint, Site, SwitchDevice } from '@/types/models';
+import type { AccessPoint, Alert, AuthSession, BandwidthPoint, Client, ManagedUser, RogueAccessPoint, Site, SwitchDevice } from '@/types/models';
 
 const delay = async <T,>(data: T, timeout = 280) => new Promise<T>((resolve) => setTimeout(() => resolve(data), timeout));
+const authRequiredEventName = 'edgeops:auth-required';
 const resolveApiBaseUrl = () => {
   const configured = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
   if (!configured || typeof window === 'undefined') return configured;
@@ -25,6 +26,16 @@ const resolveApiBaseUrl = () => {
 
 const apiBaseUrl = resolveApiBaseUrl();
 const withApiBase = (input: string) => `${apiBaseUrl}${input}`;
+
+class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
 
 const deriveBandwidthUsage = (accessPointInventory: AccessPoint[]): BandwidthPoint[] => {
   const points = accessPointInventory
@@ -50,6 +61,7 @@ const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
 
   try {
     response = await fetch(withApiBase(input), {
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(init?.headers ?? {}),
@@ -64,7 +76,11 @@ const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error ?? `Request failed with status ${response.status}`);
+    const error = new ApiError(payload?.error ?? `Request failed with status ${response.status}`, response.status);
+    if (response.status === 401 && input !== '/api/auth/login' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(authRequiredEventName));
+    }
+    throw error;
   }
 
   if (response.status === 204) {
@@ -75,6 +91,26 @@ const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
 };
 
 export const api = {
+  authRequiredEventName,
+  login: async (payload: { username: string; password: string }) =>
+    jsonRequest<{ session: AuthSession }>('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) }).then((result) => result.session),
+  getSession: async () => jsonRequest<{ session: AuthSession }>('/api/auth/session').then((result) => result.session),
+  logout: async () => {
+    await jsonRequest<unknown>('/api/auth/logout', { method: 'POST' });
+  },
+  changePassword: async (payload: { currentPassword: string; newPassword: string }) => {
+    await jsonRequest<unknown>('/api/auth/change-password', { method: 'POST', body: JSON.stringify(payload) });
+  },
+  getUsers: async () => jsonRequest<{ users: ManagedUser[] }>('/api/users').then((payload) => payload.users),
+  createUser: async (payload: { username: string; password: string; role: 'super_admin' | 'site_admin' | 'read_only'; siteId?: string | null }) =>
+    jsonRequest<{ user: ManagedUser }>('/api/users', { method: 'POST', body: JSON.stringify(payload) }).then((result) => result.user),
+  updateUser: async (
+    id: string,
+    payload: Partial<{ username: string; password: string; role: 'super_admin' | 'site_admin' | 'read_only'; siteId: string | null }>,
+  ) => jsonRequest<{ user: ManagedUser }>(`/api/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) }).then((result) => result.user),
+  deleteUser: async (id: string) => {
+    await jsonRequest<unknown>(`/api/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
   getDashboard: async (siteId?: string | 'all') => {
     const siteQuery = siteId && siteId !== 'all' ? `?siteId=${encodeURIComponent(siteId)}` : '';
     const sites = await jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites).catch(() => []);
@@ -163,3 +199,5 @@ export const api = {
   simulateDeviceAction: async (action: string, targetId: string, payload?: Record<string, string | boolean>) =>
     delay({ success: true, action, targetId, payload, message: `${action} queued for ${targetId}` }, 450),
 };
+
+export { ApiError };

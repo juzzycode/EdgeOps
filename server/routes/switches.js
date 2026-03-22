@@ -1,10 +1,15 @@
 import express from 'express';
+import { ensureSiteAccess, getScopedSiteId } from '../lib/auth.js';
 
 export const createSwitchesRouter = ({ siteStore, fortiGateClient }) => {
   const router = express.Router();
 
   router.get('/', async (request, response) => {
-    const requestedSiteId = typeof request.query.siteId === 'string' ? request.query.siteId : null;
+    const requestedSiteId = getScopedSiteId(request);
+    if (request.auth?.user?.siteId && typeof request.query.siteId === 'string' && request.query.siteId !== request.auth.user.siteId) {
+      response.status(403).json({ error: 'This account is scoped to a different site' });
+      return;
+    }
     const sites = requestedSiteId
       ? [await siteStore.getSiteById(requestedSiteId)].filter(Boolean)
       : await siteStore.listSites();
@@ -23,9 +28,13 @@ export const createSwitchesRouter = ({ siteStore, fortiGateClient }) => {
   });
 
   router.get('/:id', async (request, response) => {
-    const sites = await siteStore.listSites();
+    const scopedSiteId = request.auth?.user?.siteId ?? null;
+    const sites = scopedSiteId ? [await siteStore.getSiteById(scopedSiteId)].filter(Boolean) : await siteStore.listSites();
 
     for (const site of sites) {
+      if (!ensureSiteAccess(request, response, site.id)) {
+        return;
+      }
       const device = await fortiGateClient.getManagedSwitchDetailForSite(site, request.params.id).catch(() => null);
       if (device) {
         response.json({ switch: device });

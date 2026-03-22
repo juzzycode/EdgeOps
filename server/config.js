@@ -10,6 +10,10 @@ export const serverConfig = {
   secret: process.env.EDGEOPS_SECRET ?? '',
   corsOrigin: process.env.EDGEOPS_CORS_ORIGIN ?? '*',
   sitesDbPath: path.resolve(dataDir, 'sites.sqlite'),
+  authDbPath: path.resolve(dataDir, 'auth.sqlite'),
+  sessionTtlHours: Number(process.env.EDGEOPS_SESSION_TTL_HOURS ?? 12),
+  defaultAdminUsername: process.env.EDGEOPS_DEFAULT_ADMIN_USERNAME ?? 'admin',
+  defaultAdminPassword: process.env.EDGEOPS_DEFAULT_ADMIN_PASSWORD ?? 'edgeops-admin',
   setupFiles: {
     username: path.resolve(setupDir, 'username.sqlite'),
     password: path.resolve(setupDir, 'password.sqlite'),

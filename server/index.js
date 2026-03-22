@@ -2,6 +2,8 @@ import cors from 'cors';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { serverConfig } from './config.js';
+import { clearSessionCookie, createAuthMiddleware } from './lib/auth.js';
+import { createAuthStore } from './lib/auth-store.js';
 import { createDatabase } from './lib/database.js';
 import { createFortiGateClient } from './lib/fortigate-client.js';
 import { createGatewayConfigService } from './lib/gateway-config-service.js';
@@ -11,6 +13,7 @@ import { createAlertService } from './lib/alert-service.js';
 import { createSiteStore } from './lib/site-store.js';
 import { createSetupStore } from './lib/setup-store.js';
 import { createOpenApiDocument } from './openapi.js';
+import { createAuthRouter } from './routes/auth.js';
 import { createAlertsRouter } from './routes/alerts.js';
 import { createGatewayRouter } from './routes/gateways.js';
 import { createApsRouter } from './routes/aps.js';
@@ -20,6 +23,7 @@ import { createProfilesRouter } from './routes/profiles.js';
 import { createSetupRouter } from './routes/setup.js';
 import { createSitesRouter } from './routes/sites.js';
 import { createSwitchesRouter } from './routes/switches.js';
+import { createUsersRouter } from './routes/users.js';
 
 const verboseLogging = process.argv.includes('-v') || process.argv.includes('--verbose');
 
@@ -27,12 +31,19 @@ const start = async () => {
   const app = express();
   const db = await createDatabase(serverConfig.dbPath);
   const sitesDb = await createDatabase(serverConfig.sitesDbPath);
+  const authDb = await createDatabase(serverConfig.authDbPath);
   const setupStore = await createSetupStore({
     files: serverConfig.setupFiles,
     secret: serverConfig.secret,
   });
   const siteStore = createSiteStore({ db: sitesDb });
   await siteStore.init();
+  const authStore = await createAuthStore({
+    db: authDb,
+    sessionTtlHours: serverConfig.sessionTtlHours,
+    defaultAdminUsername: serverConfig.defaultAdminUsername,
+    defaultAdminPassword: serverConfig.defaultAdminPassword,
+  });
   const repository = createGatewayRepository({
     db,
     secret: serverConfig.secret,
@@ -42,11 +53,13 @@ const start = async () => {
   const alertService = createAlertService({ siteStore, fortiGateClient });
   const gatewayConfigService = createGatewayConfigService({ repository });
   const openApiDocument = createOpenApiDocument({ port: serverConfig.port, setupFiles: serverConfig.setupFiles });
+  const requireSession = createAuthMiddleware({ authStore });
 
   app.use(express.json());
   app.use(
     cors({
       origin: serverConfig.corsOrigin === '*' ? true : serverConfig.corsOrigin,
+      credentials: true,
     }),
   );
 
@@ -122,6 +135,7 @@ const start = async () => {
           <li><a href="/api/docs">Swagger UI</a> <code>GET /api/docs</code></li>
           <li><a href="/api/openapi.json">OpenAPI spec</a> <code>GET /api/openapi.json</code></li>
           <li><a href="/api/health">Health check</a> <code>GET /api/health</code></li>
+          <li><a href="/api/auth/session">Current session</a> <code>GET /api/auth/session</code></li>
           <li><a href="/api/sites">Sites</a> <code>GET /api/sites</code></li>
           <li><a href="/api/alerts">Alerts</a> <code>GET /api/alerts</code></li>
           <li><a href="/api/profiles">Profiles</a> <code>GET /api/profiles</code></li>
@@ -147,6 +161,10 @@ const start = async () => {
       openApi: '/api/openapi.json',
       routes: {
         health: '/api/health',
+        login: '/api/auth/login',
+        session: '/api/auth/session',
+        logout: '/api/auth/logout',
+        users: '/api/users',
         setupStatus: '/api/setup/status',
         setupWizard: '/api/setup/wizard',
         sites: '/api/sites',
@@ -174,6 +192,7 @@ const start = async () => {
     response.json({
       ok: true,
       dbPath: serverConfig.dbPath,
+      authDbPath: serverConfig.authDbPath,
     });
   });
 
@@ -182,6 +201,13 @@ const start = async () => {
   });
 
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+  app.use('/api/auth', createAuthRouter({ authStore, sessionTtlHours: serverConfig.sessionTtlHours }));
+  app.post('/api/logout', requireSession, async (request, response) => {
+    await authStore.deleteSessionByToken(request.auth.token);
+    clearSessionCookie(response);
+    response.status(204).send();
+  });
+  app.use('/api', requireSession);
   app.use('/api/setup', createSetupRouter({ setupStore }));
   app.use('/api/sites', createSitesRouter({ siteStore, fortiGateClient }));
   app.use('/api/alerts', createAlertsRouter({ alertService }));
@@ -190,6 +216,7 @@ const start = async () => {
   app.use('/api/switches', createSwitchesRouter({ siteStore, fortiGateClient }));
   app.use('/api/aps', createApsRouter({ siteStore, fortiGateClient }));
   app.use('/api/clients', createClientsRouter({ siteStore, fortiGateClient }));
+  app.use('/api/users', createUsersRouter({ authStore, siteStore }));
 
   app.use(
     '/api/gateways',

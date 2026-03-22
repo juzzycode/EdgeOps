@@ -2,6 +2,28 @@ export type DeviceStatus = 'healthy' | 'warning' | 'critical' | 'offline';
 export type Severity = 'critical' | 'warning' | 'info';
 export type Role = 'super_admin' | 'site_admin' | 'read_only';
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: Role;
+  siteId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  passwordChangedAt: string | null;
+}
+
+export interface AuthSession {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  lastSeenAt: string;
+  user: AuthUser;
+}
+
+export interface ManagedUser extends AuthUser {
+  siteName?: string | null;
+}
+
 export interface Site {
   id: string;
   shorthandId?: string;

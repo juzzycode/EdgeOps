@@ -1,4 +1,5 @@
 import express from 'express';
+import { ensureSiteAccess, requireOperator, requireSuperAdmin } from '../lib/auth.js';
 
 const demoSites = [
   { name: 'Austin HQ', address: '701 Congress Ave, Austin, TX', timezone: 'America/Chicago', region: 'Central' },
@@ -11,7 +12,8 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
   const router = express.Router();
 
   router.get('/', async (_request, response) => {
-    const rows = await siteStore.listSites();
+    const scopedSiteId = _request.auth?.user?.siteId ?? null;
+    const rows = scopedSiteId ? [await siteStore.getSiteById(scopedSiteId)].filter(Boolean) : await siteStore.listSites();
     const sites = await Promise.all(
       rows.map((site) =>
         fortiGateClient.summarizeSite(site).catch((error) => {
@@ -49,7 +51,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
     response.json({ sites });
   });
 
-  router.post('/', async (request, response) => {
+  router.post('/', requireSuperAdmin, async (request, response) => {
     const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword } = request.body ?? {};
 
     if (!name || !address || !timezone || !region) {
@@ -73,7 +75,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
     response.status(201).json({ site: await fortiGateClient.summarizeSite(site) });
   });
 
-  router.post('/load-demo', async (_request, response) => {
+  router.post('/load-demo', requireSuperAdmin, async (_request, response) => {
     const existing = await siteStore.listSites();
     const existingNames = new Set(existing.map((site) => site.name));
 
@@ -96,6 +98,9 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
   });
 
   router.get('/:id', async (request, response) => {
+    if (!ensureSiteAccess(request, response, request.params.id)) {
+      return;
+    }
     const site = await siteStore.getSiteById(request.params.id);
     if (!site) {
       response.status(404).json({ error: 'Site not found' });
@@ -105,7 +110,10 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
     response.json({ site: await fortiGateClient.summarizeSite(site) });
   });
 
-  router.patch('/:id', async (request, response) => {
+  router.patch('/:id', requireOperator, async (request, response) => {
+    if (!ensureSiteAccess(request, response, request.params.id)) {
+      return;
+    }
     const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, adminUsername, adminPassword } = request.body ?? {};
     const existing = await siteStore.getSiteById(request.params.id);
 
@@ -134,7 +142,10 @@ export const createSitesRouter = ({ siteStore, fortiGateClient }) => {
     response.json({ site: await fortiGateClient.summarizeSite(site) });
   });
 
-  router.delete('/:id', async (request, response) => {
+  router.delete('/:id', requireSuperAdmin, async (request, response) => {
+    if (!ensureSiteAccess(request, response, request.params.id)) {
+      return;
+    }
     const removed = await siteStore.deleteSite(request.params.id);
     if (!removed) {
       response.status(404).json({ error: 'Site not found' });

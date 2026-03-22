@@ -26,7 +26,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const { role, theme, selectedSiteId, setRole, setSelectedSiteId, toggleTheme, commandPaletteOpen, setCommandPaletteOpen } = useAppStore();
+  const { role, sessionUser, theme, selectedSiteId, setSelectedSiteId, toggleTheme, commandPaletteOpen, setCommandPaletteOpen, clearSession } = useAppStore();
 
   useEffect(() => {
     api.getSites().then(setSites).catch(() => setSites([]));
@@ -51,8 +51,15 @@ export const AppShell = ({ children }: PropsWithChildren) => {
     return () => window.clearTimeout(timeout);
   }, [profileMessage]);
 
+  useEffect(() => {
+    if (sessionUser?.siteId) {
+      setSelectedSiteId(sessionUser.siteId);
+    }
+  }, [sessionUser?.siteId, setSelectedSiteId]);
+
   const selectedSiteName =
     selectedSiteId === 'all' ? 'All sites' : sites.find((site) => site.id === selectedSiteId)?.name ?? 'Scoped site';
+  const visibleSites = sessionUser?.siteId ? sites.filter((site) => site.id === sessionUser.siteId) : sites;
 
   const goToSettings = () => {
     setProfileMenuOpen(false);
@@ -62,7 +69,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
   const handleChangePassword = () => {
     setProfileMenuOpen(false);
     navigate('/settings');
-    setProfileMessage('Password management will live under Settings once authentication is wired.');
+    setProfileMessage('Password management is available under Settings.');
   };
 
   const handleNotificationSettings = () => {
@@ -71,13 +78,15 @@ export const AppShell = ({ children }: PropsWithChildren) => {
     setProfileMessage('Notification preferences are available under Settings.');
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     setProfileMenuOpen(false);
-    setRole('read_only');
-    setSelectedSiteId('all');
-    setCommandPaletteOpen(false);
-    navigate('/dashboard');
-    setProfileMessage('Signed out of the local workspace simulation.');
+    try {
+      await api.logout();
+    } catch {
+      // If the session is already gone, continue clearing local state.
+    }
+    clearSession();
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -144,19 +153,18 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                   </button>
                 </div>
 
-                <select value={selectedSiteId} onChange={(event) => setSelectedSiteId(event.target.value as string | 'all')} className="focus-ring rounded-2xl border border-border bg-soft px-4 py-3 text-sm text-text">
+                <select
+                  value={selectedSiteId}
+                  onChange={(event) => setSelectedSiteId(event.target.value as string | 'all')}
+                  className="focus-ring rounded-2xl border border-border bg-soft px-4 py-3 text-sm text-text disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={Boolean(sessionUser?.siteId)}
+                >
                   <option value="all">All sites</option>
-                  {sites.map((site) => (
+                  {visibleSites.map((site) => (
                     <option key={site.id} value={site.id}>
                       {site.name}
                     </option>
                   ))}
-                </select>
-
-                <select value={role} onChange={(event) => setRole(event.target.value as typeof role)} className="focus-ring rounded-2xl border border-border bg-soft px-4 py-3 text-sm capitalize text-text">
-                  <option value="super_admin">Super Admin</option>
-                  <option value="site_admin">Site Admin</option>
-                  <option value="read_only">Read Only</option>
                 </select>
               </div>
 
@@ -175,7 +183,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                   >
                     <UserCircle2 className="h-5 w-5 text-accent" />
                     <div>
-                      <p className="text-sm font-medium text-text">Network Admin</p>
+                      <p className="text-sm font-medium text-text">{sessionUser?.username ?? 'Operator'}</p>
                       <p className="text-xs capitalize text-muted">{role.replace('_', ' ')}</p>
                     </div>
                     <ChevronDown className={cn('h-4 w-4 text-muted transition', profileMenuOpen && 'rotate-180')} />
@@ -184,7 +192,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                   {profileMenuOpen ? (
                     <div className="absolute right-0 z-40 mt-3 w-80 rounded-3xl border border-border bg-surface p-3 shadow-2xl">
                       <div className="rounded-2xl bg-soft px-4 py-3">
-                        <p className="text-sm font-semibold text-text">Network Admin</p>
+                        <p className="text-sm font-semibold text-text">{sessionUser?.username ?? 'Operator'}</p>
                         <p className="mt-1 text-xs capitalize text-muted">{role.replace('_', ' ')}</p>
                         <p className="mt-2 text-xs text-muted">Current scope: {selectedSiteName}</p>
                       </div>
@@ -210,14 +218,16 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                         <MenuAction
                           icon={Settings2}
                           label="Operator Settings"
-                          description="Tune role simulation, site scope, and telemetry preferences."
+                          description="Tune workspace preferences, profile settings, and local telemetry controls."
                           onClick={goToSettings}
                         />
                         <MenuAction
                           icon={LogOut}
                           label="Logout"
-                          description="Exit the local workspace simulation and return to read-only mode."
-                          onClick={handleSignOut}
+                          description="Terminate the current session and return to the login screen."
+                          onClick={() => {
+                            void handleSignOut();
+                          }}
                           tone="danger"
                         />
                       </div>

@@ -8,6 +8,7 @@ import { Panel } from '@/components/common/Panel';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SideDrawer } from '@/components/drawers/SideDrawer';
 import { api } from '@/services/api';
+import { useAppStore } from '@/store/useAppStore';
 import type { Site } from '@/types/models';
 
 interface SiteFormState {
@@ -35,6 +36,7 @@ const defaultForm: SiteFormState = {
 };
 
 export const SitesPage = () => {
+  const role = useAppStore((state) => state.role);
   const [sites, setSites] = useState<Site[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<SiteFormState>(defaultForm);
@@ -47,6 +49,9 @@ export const SitesPage = () => {
 
   const liveSites = useMemo(() => (sites ?? []).filter((site) => site.source !== 'demo'), [sites]);
   const demoSites = useMemo(() => (sites ?? []).filter((site) => site.source === 'demo'), [sites]);
+  const canCreateSites = role === 'super_admin';
+  const canEditSites = role !== 'read_only';
+  const canDeleteSites = role === 'super_admin';
 
   const refreshSites = async () => {
     try {
@@ -168,30 +173,34 @@ export const SitesPage = () => {
         description="Add real FortiGate-backed sites, capture location metadata, and keep demo inventory as an explicit opt-in instead of the default view."
         actions={
           <>
-            <button
-              className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text transition hover:bg-soft"
-              onClick={() => setShowWizard((current) => !current)}
-              type="button"
-            >
-              <BadgePlus className="h-4 w-4" />
-              {showWizard ? 'Hide Add Site' : 'Add Site'}
-            </button>
-            <button
-              className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={loadingDemo}
-              onClick={handleLoadDemo}
-              type="button"
-            >
-              {loadingDemo ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Load Demo Data
-            </button>
+            {canCreateSites ? (
+              <>
+                <button
+                  className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text transition hover:bg-soft"
+                  onClick={() => setShowWizard((current) => !current)}
+                  type="button"
+                >
+                  <BadgePlus className="h-4 w-4" />
+                  {showWizard ? 'Hide Add Site' : 'Add Site'}
+                </button>
+                <button
+                  className="focus-ring inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={loadingDemo}
+                  onClick={handleLoadDemo}
+                  type="button"
+                >
+                  {loadingDemo ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Load Demo Data
+                </button>
+              </>
+            ) : null}
           </>
         }
       />
 
       {error ? <ErrorState title="Site API unavailable" description={error} /> : null}
 
-      {showWizard ? (
+      {showWizard && canCreateSites ? (
         <Panel title="Add Site Wizard" subtitle="Create a site, store its metadata, and connect it to a FortiGate for live summary polling.">
           <form className="grid gap-4 lg:grid-cols-2" onSubmit={handleCreateSite}>
             <Field label="Site Name" required>
@@ -278,14 +287,18 @@ export const SitesPage = () => {
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2 text-sm text-text hover:bg-soft" onClick={() => beginEdit(site)} type="button">
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </button>
-                  <button className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger hover:bg-danger/15 disabled:opacity-60" disabled={deletingSiteId === site.id} onClick={() => handleDeleteSite(site)} type="button">
-                    {deletingSiteId === site.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    Delete
-                  </button>
+                  {canEditSites ? (
+                    <button className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2 text-sm text-text hover:bg-soft" onClick={() => beginEdit(site)} type="button">
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </button>
+                  ) : null}
+                  {canDeleteSites ? (
+                    <button className="focus-ring inline-flex items-center gap-2 rounded-2xl border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger hover:bg-danger/15 disabled:opacity-60" disabled={deletingSiteId === site.id} onClick={() => handleDeleteSite(site)} type="button">
+                      {deletingSiteId === site.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      Delete
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">

@@ -140,10 +140,12 @@ Planned next step:
 
 Implemented capabilities:
 
-- Role-aware settings summary
-- Security placeholder
-- Automation placeholder
-- Integration notes
+- Real password change flow
+- User management for super admins
+- Site-scoped user assignment
+- Session-backed role display
+- Workspace and telemetry preferences
+- Live platform posture snapshot
 
 ## Platform Features
 
@@ -155,6 +157,9 @@ Shared platform features already in place:
 - React Router navigation
 - Recharts widgets
 - Lucide icons
+- Real login page and session-backed logout
+- Cookie-based API session enforcement
+- SQLite-backed operator database
 - Dark and light theme support
 - Responsive desktop-first layout
 - Mobile navigation support
@@ -164,7 +169,7 @@ Shared platform features already in place:
 ## Future Expansion Areas
 
 - Real backend API integration
-- Authentication and RBAC enforcement
+- External identity provider or SSO integration
 - Global command palette behavior
 - Live websocket updates
 - Table pagination and server-side filtering

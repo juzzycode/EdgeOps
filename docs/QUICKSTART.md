@@ -67,6 +67,26 @@ You can later edit or delete a site directly from the Sites page. That is the pr
 
 If you want sample locations instead, use `Load Demo Data` from the Sites page.
 
+## Sign In
+
+The UI now requires a real session.
+
+When the backend auth database is empty, it creates a bootstrap super admin from `.env`:
+
+- `EDGEOPS_DEFAULT_ADMIN_USERNAME`
+- `EDGEOPS_DEFAULT_ADMIN_PASSWORD`
+
+If you do not override them, the default login is:
+
+- username: `admin`
+- password: `edgeops-admin`
+
+After the first login:
+
+- use `Settings` to change the password
+- use `Settings` to create `super_admin`, `site_admin`, and `read_only` operators
+- use site assignment on users when you want the backend to scope them to a single site
+
 ## Build
 
 Only run this when you want to test a production build:
@@ -139,11 +159,11 @@ To connect real backend APIs later:
 1. Expand the existing live site HTTP calls in `src/services/api.ts`.
 2. Preserve returned data shapes where possible.
 3. Add websocket or SSE subscriptions for live updates.
-4. Move role rules from UI hints into real authorization checks.
+4. Extend the existing session and role enforcement with finer-grained permissions or identity providers later.
 
 ## Notes
 
 - Theme switching is already wired in.
-- Role switching is mocked for `super_admin`, `site_admin`, and `read_only`.
+- Role enforcement is now real for `super_admin`, `site_admin`, and `read_only`.
 - Device actions like reboot and blink LED are simulated through the service layer.
 - The optional site admin username/password fields are reserved for future SSH or CLI-assisted collection and are not used by the current REST polling flow.
