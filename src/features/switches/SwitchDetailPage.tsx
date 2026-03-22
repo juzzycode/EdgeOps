@@ -76,7 +76,7 @@ export const SwitchDetailPage = () => {
               <div key={port.id} className="rounded-2xl bg-soft px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div><p className="font-medium text-text">{formatPortLabel(port.portNumber)}</p><p className="text-xs text-muted">{port.description}</p></div>
-                  <StatusBadge value={port.status === 'up' ? 'healthy' : port.status === 'warning' ? 'warning' : 'offline'} />
+                  <StatusBadge value={port.status === 'up' ? 'healthy' : port.status === 'warning' ? 'warning' : 'inactive'} />
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-muted"><span>{port.vlan}</span><span>{port.poeWatts}W PoE</span></div>
               </div>

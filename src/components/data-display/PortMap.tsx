@@ -3,7 +3,7 @@ import type { SwitchPort } from '@/types/models';
 
 const tone: Record<SwitchPort['status'], string> = {
   up: 'bg-success/20 text-success border-success/20',
-  down: 'bg-offline/20 text-offline border-offline/20',
+  down: 'bg-slate-500/20 text-slate-400 border-slate-500/20',
   disabled: 'bg-slate-500/20 text-slate-400 border-slate-500/20',
   warning: 'bg-warning/20 text-warning border-warning/20',
 };

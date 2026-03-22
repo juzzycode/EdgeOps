@@ -10,6 +10,11 @@ export const statusTone: Record<DeviceStatus, string> = {
   offline: 'bg-slate-500/15 text-offline',
 };
 
+export const extendedStatusTone: Record<string, string> = {
+  ...statusTone,
+  inactive: 'bg-slate-500/15 text-slate-400',
+};
+
 export const severityTone: Record<Severity, string> = {
   critical: 'bg-danger/15 text-danger',
   warning: 'bg-warning/15 text-warning',
