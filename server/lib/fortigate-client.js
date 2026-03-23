@@ -661,10 +661,19 @@ const getCachedSwitchStatus = async (site, apiKey) => {
     return cached.payload;
   }
 
-  const payload = await requestJson(
-    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/switch-controller/managed-switch/status?vdom=${encodeURIComponent(resolveSiteVdom(site))}`,
+  const requestedVdom = resolveSiteVdom(site);
+  let payload = await requestJson(
+    `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/switch-controller/managed-switch/status?vdom=${encodeURIComponent(requestedVdom)}`,
     apiKey,
-  );
+  ).catch(() => ({ results: [] }));
+
+  const hasResults = Array.isArray(payload?.results) && payload.results.length > 0;
+  if (!hasResults && requestedVdom !== 'root') {
+    payload = await requestJson(
+      `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/switch-controller/managed-switch/status?vdom=root`,
+      apiKey,
+    );
+  }
 
   switchStatusCache.set(cacheKey, {
     fetchedAt: Date.now(),
