@@ -139,7 +139,12 @@ export const DashboardPage = () => {
 
       <TopologyCanvas
         topology={topology}
-        subtitle="Live path map for the currently selected scope, including site edge, managed switches, APs, and client aggregates."
+        title={selectedSiteId && selectedSiteId !== 'all' ? 'Site Network Map' : 'Network Web'}
+        subtitle={
+          selectedSiteId && selectedSiteId !== 'all'
+            ? 'Live map for the selected site, including WAN latency, managed switches, APs, and client aggregates.'
+            : 'Live multi-site web graph across the selected estate scope, with WAN latency shown on the graph.'
+        }
       />
     </div>
   );

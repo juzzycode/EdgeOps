@@ -1,9 +1,10 @@
-import { Network, RadioTower, Server, Users } from 'lucide-react';
+import { Globe2, Network, RadioTower, Server, Users } from 'lucide-react';
 import { Panel } from '@/components/common/Panel';
 import { cn, extendedStatusTone, formatNumber } from '@/lib/utils';
 import type { TopologyGraph, TopologyNode } from '@/types/models';
 
 const nodeSizes = {
+  wan: { width: 220, height: 104 },
   site: { width: 220, height: 104 },
   switch: { width: 220, height: 104 },
   ap: { width: 220, height: 104 },
@@ -11,6 +12,7 @@ const nodeSizes = {
 } as const;
 
 const iconByType = {
+  wan: Globe2,
   site: Network,
   switch: Server,
   ap: RadioTower,
@@ -110,10 +112,18 @@ const TopologyNodeCard = ({ node }: { node: TopologyNode }) => {
         {metaEntries.slice(0, 3).map(([key, value]) => (
           <div key={key} className="flex items-center justify-between gap-3">
             <span className="capitalize">{key}</span>
-            <span className="text-right text-text">{String(value)}</span>
+            <span className="text-right text-text">{formatMetaValue(key, value)}</span>
           </div>
         ))}
       </div>
     </div>
   );
+};
+
+const formatMetaValue = (key: string, value: string | number | null) => {
+  if (value === null || value === undefined || value === '') return 'Unavailable';
+  if (key.toLowerCase().includes('latency') && typeof value === 'number') {
+    return `${value.toFixed(1)} ms`;
+  }
+  return String(value);
 };

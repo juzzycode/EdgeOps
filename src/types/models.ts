@@ -460,7 +460,7 @@ export interface DeviceActionRecord {
 
 export interface TopologyNode {
   id: string;
-  type: 'site' | 'switch' | 'ap' | 'client-group';
+  type: 'wan' | 'site' | 'switch' | 'ap' | 'client-group';
   label: string;
   status: DeviceStatus;
   siteId: string;
