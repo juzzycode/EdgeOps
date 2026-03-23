@@ -1,8 +1,8 @@
 # TODO
 
 ## High Priority
-
-- Fix firmware version collection where FortiGate inventory still reports generic values instead of the actual running version.
+- Add VDOM support/testing - added to the 'site' so you can have multiple sites on different vdoms. Needs more testing though.
+- Fix firmware version for upgrades, the ui does some trickery from fortiguard and support. Needs more debugging.
 
 ## Multi-Vendor Roadmap
 
@@ -22,7 +22,6 @@
 
 ## Wireless
 
-- Improve AP firmware version accuracy.
 - Add better per-AP operational state from direct monitor endpoints instead of heuristics where possible.
 - Add real AP rename, reboot, LED, and radio enable or disable actions.
 - Add richer rogue AP detection and classification if more controller data is available.
