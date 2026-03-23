@@ -819,6 +819,9 @@ const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = [], r
     extractStatusField(runtimeStatus, ['os_version', 'firmware-version', 'version']) ||
     extractStatusField(item, ['firmware-provision-version', 'staged-image-version', 'os-version']) ||
     'Managed by FortiGate';
+  const targetFirmware =
+    extractStatusField(item, ['firmware-provision-version', 'staged-image-version']) ||
+    (item['firmware-provision-latest'] === 'once' ? 'Latest available firmware' : 'No staged target');
   const ports = applyUplinkHeuristics(
     rawPorts.map((port) => {
       const portName = port['port-name'] || 'unknown';
@@ -879,7 +882,7 @@ const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = [], r
     siteId: site.id,
     status: portsUsed ? (item['directly-connected'] === 1 ? 'healthy' : 'warning') : 'offline',
     firmware,
-    targetFirmware: firmware,
+    targetFirmware,
     portsUsed,
     totalPorts: ports.length,
     poeUsageWatts,
@@ -894,6 +897,7 @@ const mapManagedSwitch = (site, item, statsByPort = {}, portOverrideRows = [], r
       `Access profile: ${extractStatusField(item, ['access-profile']) || 'default'}`,
       `FortiLink peer: ${extractStatusField(item, ['fsw-wan1-peer']) || 'not reported'}`,
       `Firmware provisioning: ${extractStatusField(item, ['firmware-provision']) || 'disable'}`,
+      `Target firmware: ${targetFirmware}`,
       runtimeStatus?.os_version ? `Running firmware: ${runtimeStatus.os_version}` : 'Live switch runtime status is not available from the FortiGate monitor endpoint.',
     ],
     ports,
