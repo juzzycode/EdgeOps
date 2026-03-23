@@ -1057,7 +1057,108 @@ const mapFortiGateInterface = (siteId, item) => ({
   allowAccess: parseAllowAccess(item?.allowaccess),
 });
 
-const mapFortiGateDevice = (site, summary, interfaces = []) => ({
+const mapFortiGateVpn = (siteId, item, phase2Count = 0, statusPayload = null) => {
+  const name =
+    extractStatusField(item, ['name', 'q_origin_key']) ||
+    extractStatusField(statusPayload, ['name']) ||
+    'IPsec Tunnel';
+  const statusValue = String(
+    extractStatusField(statusPayload, ['status']) ||
+      extractStatusField(item, ['status']) ||
+      'down',
+  ).toLowerCase();
+
+  return {
+    id: `${buildFortiGateId(siteId)}--vpn--${name}`,
+    name,
+    type: extractStatusField(item, ['type']) || 'ipsec',
+    interface: extractStatusField(item, ['interface']) || 'unknown',
+    remoteGateway:
+      extractStatusField(item, ['remote-gw', 'remote_gw']) ||
+      extractStatusField(statusPayload, ['gateway', 'remote_gw']) ||
+      'dynamic',
+    status: statusValue.includes('up')
+      ? 'up'
+      : statusValue.includes('established') || statusValue.includes('connected')
+        ? 'up'
+        : statusValue.includes('warning')
+          ? 'warning'
+          : 'down',
+    phase2Count,
+  };
+};
+
+const mapFortiGatePolicy = (siteId, item) => ({
+  id: `${buildFortiGateId(siteId)}--policy--${String(item?.policyid || item?.id || '0')}`,
+  sequence: Number(item?.policyid || item?.id || 0),
+  name: extractStatusField(item, ['name']) || `Policy ${item?.policyid || item?.id || ''}`.trim(),
+  action: extractStatusField(item, ['action']) || 'accept',
+  srcInterface:
+    (Array.isArray(item?.srcintf) ? item.srcintf.map((entry) => entry?.name || entry?.q_origin_key).filter(Boolean).join(', ') : '') ||
+    'any',
+  dstInterface:
+    (Array.isArray(item?.dstintf) ? item.dstintf.map((entry) => entry?.name || entry?.q_origin_key).filter(Boolean).join(', ') : '') ||
+    'any',
+  services: Array.isArray(item?.service)
+    ? item.service.map((entry) => entry?.name || entry?.q_origin_key).filter(Boolean)
+    : ['ALL'],
+  schedule: extractStatusField(item, ['schedule']) || 'always',
+  nat: String(item?.nat || '').toLowerCase() === 'enable',
+  logTraffic: extractStatusField(item, ['logtraffic']) || 'disable',
+  status: String(item?.status || '').toLowerCase() === 'disable' ? 'disabled' : 'enabled',
+});
+
+const toIsoFromEpochSeconds = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return new Date(numeric * 1000).toISOString();
+};
+
+const mapFortiGateDhcpLease = (siteId, item) => ({
+  id: `${buildFortiGateId(siteId)}--lease--${String(item?.ip || item?.address || item?.mac || 'unknown')}`,
+  interface: extractStatusField(item, ['interface', 'interface-name', 'interface_name']) || 'unknown',
+  ip: extractStatusField(item, ['ip', 'address']) || 'Unavailable',
+  mac: extractStatusField(item, ['mac', 'mac-address', 'mac_address']) || 'Unavailable',
+  hostname:
+    extractStatusField(item, ['hostname', 'host-name', 'client-hostname', 'client_hostname']) || 'Unknown client',
+  status: extractStatusField(item, ['status', 'state']) || 'leased',
+  expiresAt: toIsoFromEpochSeconds(item?.expires || item?.expire || item?.lease_expire),
+});
+
+const mapFortiGateHaStatus = (haConfigPayload, haChecksPayload, statusPayload) => {
+  const haConfig = Array.isArray(haConfigPayload?.results) ? haConfigPayload.results[0] ?? {} : haConfigPayload?.results ?? {};
+  const haChecks = Array.isArray(haChecksPayload?.results) ? haChecksPayload.results[0] ?? {} : haChecksPayload?.results ?? {};
+  const peers = Array.isArray(haChecks?.peers)
+    ? haChecks.peers.map((peer) => extractStatusField(peer, ['hostname', 'serial', 'name']) || 'Peer').filter(Boolean)
+    : [];
+  const mode =
+    extractStatusField(haChecks, ['mode']) ||
+    extractStatusField(haConfig, ['mode']) ||
+    extractFromStatusPayload(statusPayload, ['ha_mode']) ||
+    'standalone';
+  const role =
+    extractStatusField(haChecks, ['role']) ||
+    extractFromStatusPayload(statusPayload, ['ha_role']) ||
+    (peers.length ? 'member' : 'standalone');
+  const state =
+    extractStatusField(haChecks, ['status', 'state']) ||
+    (mode === 'standalone' ? 'Standalone' : 'Unknown');
+  const syncStatus =
+    extractStatusField(haChecks, ['sync_status', 'sync-status']) ||
+    (peers.length ? 'Peer data present' : 'No peers detected');
+
+  return {
+    mode,
+    role,
+    state,
+    clusterName: extractStatusField(haConfig, ['group-name', 'group_name']),
+    peerCount: peers.length,
+    syncStatus,
+    peers,
+  };
+};
+
+const mapFortiGateDevice = (site, summary, interfaces = [], details = {}) => ({
   id: buildFortiGateId(site.id),
   siteId: site.id,
   siteName: summary.name,
@@ -1084,6 +1185,18 @@ const mapFortiGateDevice = (site, summary, interfaces = []) => ({
     `Config archive: ${summary.configArchiveEnabled === false ? 'disabled' : 'enabled'}`,
   ],
   interfaces,
+  vpns: details.vpns ?? [],
+  policies: details.policies ?? [],
+  dhcpLeases: details.dhcpLeases ?? [],
+  haStatus:
+    details.haStatus ?? {
+      mode: 'standalone',
+      role: 'standalone',
+      state: 'Standalone',
+      peerCount: 0,
+      syncStatus: 'No peers detected',
+      peers: [],
+    },
   lastSyncError: summary.lastSyncError ?? null,
 });
 
@@ -1203,7 +1316,7 @@ export const createFortiGateClient = ({ siteStore }) => ({
       return null;
     }
 
-    const [summary, interfacesPayload, statusPayload, addressPayload] = await Promise.all([
+    const [summary, interfacesPayload, statusPayload, addressPayload, vpnPhase1Payload, vpnPhase2Payload, vpnMonitorPayload, policyPayload, dhcpPayload, haConfigPayload, haChecksPayload] = await Promise.all([
       this.summarizeSite(site),
       requestJson(
         `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/system/interface`,
@@ -1215,6 +1328,34 @@ export const createFortiGateClient = ({ siteStore }) => ({
       ).catch(() => ({})),
       requestJson(
         `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/firewall/address`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/vpn.ipsec/phase1-interface`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/vpn.ipsec/phase2-interface`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/vpn/ipsec`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/firewall/policy`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/dhcp`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/system/ha`,
+        site.fortigate_api_key,
+      ).catch(() => ({ results: [] })),
+      requestJson(
+        `${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/ha-checks`,
         site.fortigate_api_key,
       ).catch(() => ({ results: [] })),
     ]);
@@ -1239,6 +1380,26 @@ export const createFortiGateClient = ({ siteStore }) => ({
       extractFromStatusPayload(statusPayload, ['serial', 'serial-number']) ||
       summary.fortigateSerial ||
       null;
+    const phase1Items = Array.isArray(vpnPhase1Payload.results) ? vpnPhase1Payload.results : [];
+    const phase2Items = Array.isArray(vpnPhase2Payload.results) ? vpnPhase2Payload.results : [];
+    const vpnMonitorItems = Array.isArray(vpnMonitorPayload.results) ? vpnMonitorPayload.results : [];
+    const policies = (Array.isArray(policyPayload.results) ? policyPayload.results : [])
+      .map((item) => mapFortiGatePolicy(site.id, item))
+      .sort((left, right) => left.sequence - right.sequence)
+      .slice(0, 50);
+    const dhcpLeases = (Array.isArray(dhcpPayload.results) ? dhcpPayload.results : [])
+      .map((item) => mapFortiGateDhcpLease(site.id, item))
+      .sort((left, right) => left.interface.localeCompare(right.interface) || left.ip.localeCompare(right.ip))
+      .slice(0, 100);
+    const vpnStatusMap = new Map(
+      vpnMonitorItems.map((item) => [extractStatusField(item, ['name']) || '', item]),
+    );
+    const vpns = phase1Items.map((item) => {
+      const name = extractStatusField(item, ['name', 'q_origin_key']) || '';
+      const phase2Count = phase2Items.filter((phase2) => extractStatusField(phase2, ['phase1name']) === name).length;
+      return mapFortiGateVpn(site.id, item, phase2Count, vpnStatusMap.get(name) ?? null);
+    });
+    const haStatus = mapFortiGateHaStatus(haConfigPayload, haChecksPayload, statusPayload);
 
     return mapFortiGateDevice(
       site,
@@ -1250,6 +1411,12 @@ export const createFortiGateClient = ({ siteStore }) => ({
         addressObjectCount: addressCount,
       },
       interfaces,
+      {
+        vpns,
+        policies,
+        dhcpLeases,
+        haStatus,
+      },
     );
   },
 

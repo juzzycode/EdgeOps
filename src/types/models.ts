@@ -94,6 +94,50 @@ export interface FortiGateInterface {
   allowAccess: string[];
 }
 
+export interface FortiGateVpn {
+  id: string;
+  name: string;
+  type: string;
+  interface: string;
+  remoteGateway: string;
+  status: 'up' | 'down' | 'warning';
+  phase2Count: number;
+}
+
+export interface FortiGatePolicy {
+  id: string;
+  sequence: number;
+  name: string;
+  action: string;
+  srcInterface: string;
+  dstInterface: string;
+  services: string[];
+  schedule: string;
+  nat: boolean;
+  logTraffic: string;
+  status: 'enabled' | 'disabled';
+}
+
+export interface FortiGateDhcpLease {
+  id: string;
+  interface: string;
+  ip: string;
+  mac: string;
+  hostname: string;
+  status: string;
+  expiresAt?: string | null;
+}
+
+export interface FortiGateHaStatus {
+  mode: string;
+  role: string;
+  state: string;
+  clusterName?: string;
+  peerCount: number;
+  syncStatus: string;
+  peers: string[];
+}
+
 export interface FortiGateDevice {
   id: string;
   siteId: string;
@@ -115,6 +159,10 @@ export interface FortiGateDevice {
   configArchiveEnabled: boolean;
   configSummary: string[];
   interfaces: FortiGateInterface[];
+  vpns: FortiGateVpn[];
+  policies: FortiGatePolicy[];
+  dhcpLeases: FortiGateDhcpLease[];
+  haStatus: FortiGateHaStatus;
   lastSyncError?: string | null;
 }
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Cable, Globe2, Network, ShieldCheck, Waypoints } from 'lucide-react';
+import { Cable, Globe2, ShieldCheck, ShieldEllipsis, Waypoints } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ErrorState, LoadingState } from '@/components/common/States';
@@ -125,6 +125,114 @@ export const FortiGateDetailPage = () => {
           </div>
         </Panel>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <Panel title="HA Status" subtitle="Live HA posture when FortiGate exposes HA config and monitor data.">
+          <div className="space-y-3">
+            <SignalRow label="Mode" value={device.haStatus.mode || 'Unavailable'} />
+            <SignalRow label="Role" value={device.haStatus.role || 'Unavailable'} />
+            <SignalRow label="State" value={device.haStatus.state || 'Unavailable'} />
+            <SignalRow label="Cluster" value={device.haStatus.clusterName || 'Standalone'} />
+            <SignalRow label="Peers" value={String(device.haStatus.peerCount)} />
+            <SignalRow label="Sync" value={device.haStatus.syncStatus || 'Unavailable'} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {device.haStatus.peers.length ? (
+              device.haStatus.peers.map((peer) => (
+                <span key={peer} className="rounded-full bg-soft px-3 py-1 text-xs text-muted">
+                  {peer}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-muted">No HA peers reported</span>
+            )}
+          </div>
+        </Panel>
+
+        <Panel title="VPNs" subtitle="IPsec Phase 1 tunnels with live status when the monitor endpoint is available.">
+          <div className="space-y-3">
+            {device.vpns.length ? (
+              device.vpns.map((vpn) => (
+                <div key={vpn.id} className="rounded-2xl border border-border bg-soft p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-text">{vpn.name}</p>
+                      <p className="mt-1 text-xs text-muted">{vpn.interface} {'->'} {vpn.remoteGateway}</p>
+                    </div>
+                    <StatusBadge value={vpn.status === 'up' ? 'healthy' : vpn.status === 'warning' ? 'warning' : 'offline'} />
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <DetailRow label="Type" value={vpn.type} />
+                    <DetailRow label="Phase 2 Selectors" value={String(vpn.phase2Count)} />
+                    <DetailRow label="Remote" value={vpn.remoteGateway} />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-soft px-4 py-6 text-sm text-muted">No VPN tunnels were returned by the FortiGate API for this site.</div>
+            )}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Panel title="Firewall Policies" subtitle="Top policies from the FortiGate policy table, trimmed for quick review.">
+          <div className="space-y-3">
+            {device.policies.length ? (
+              device.policies.map((policy) => (
+                <div key={policy.id} className="rounded-2xl border border-border bg-soft p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-text">{policy.name}</p>
+                      <p className="mt-1 text-xs text-muted">Policy {policy.sequence} | {policy.srcInterface} {'->'} {policy.dstInterface}</p>
+                    </div>
+                    <StatusBadge value={policy.status === 'enabled' ? 'healthy' : 'offline'} />
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <DetailRow label="Action" value={policy.action} />
+                    <DetailRow label="Schedule" value={policy.schedule} />
+                    <DetailRow label="NAT" value={policy.nat ? 'Enabled' : 'Disabled'} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {policy.services.slice(0, 6).map((service) => (
+                      <span key={service} className="rounded-full bg-canvas px-2 py-1 text-xs text-muted">
+                        {service}
+                      </span>
+                    ))}
+                    {policy.services.length > 6 ? <span className="text-xs text-muted">+{policy.services.length - 6} more</span> : null}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-soft px-4 py-6 text-sm text-muted">No firewall policies were returned by the FortiGate API for this site.</div>
+            )}
+          </div>
+        </Panel>
+
+        <Panel title="DHCP Leases" subtitle="Current leases from the FortiGate DHCP monitor endpoint when available.">
+          <div className="space-y-3">
+            {device.dhcpLeases.length ? (
+              device.dhcpLeases.map((lease) => (
+                <div key={lease.id} className="rounded-2xl border border-border bg-soft p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-text">{lease.hostname}</p>
+                      <p className="mt-1 text-xs text-muted">{lease.ip} | {lease.mac}</p>
+                    </div>
+                    <StatusBadge value={lease.status === 'leased' || lease.status === 'active' ? 'healthy' : 'warning'} />
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <DetailRow label="Interface" value={lease.interface} />
+                    <DetailRow label="Expires" value={lease.expiresAt ? formatRelativeTime(lease.expiresAt) : 'Unknown'} />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-soft px-4 py-6 text-sm text-muted">No DHCP lease data was returned by the FortiGate API for this site.</div>
+            )}
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 };
@@ -164,7 +272,7 @@ const DetailRow = ({ label, value }: { label: string; value: string }) => (
 const SignalRow = ({ label, value }: { label: string; value: string }) => (
   <div className="flex items-center justify-between gap-4 rounded-2xl bg-soft px-4 py-3">
     <div className="flex items-center gap-3">
-      <Network className="h-4 w-4 text-accent" />
+      <ShieldEllipsis className="h-4 w-4 text-accent" />
       <span className="text-sm text-muted">{label}</span>
     </div>
     <span className="text-right text-sm font-medium text-text">{value}</span>
