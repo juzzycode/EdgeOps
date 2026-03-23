@@ -18,6 +18,7 @@ import { createAlertService } from './lib/alert-service.js';
 import { createSiteStore } from './lib/site-store.js';
 import { createSetupStore } from './lib/setup-store.js';
 import { createTopologyService } from './lib/topology-service.js';
+import { createVendorLookupService } from './lib/vendor-lookup-service.js';
 import { createOpenApiDocument } from './openapi.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createAlertsRouter } from './routes/alerts.js';
@@ -59,7 +60,8 @@ const start = async () => {
     db,
     secret: serverConfig.secret,
   });
-  const fortiGateClient = createFortiGateClient({ siteStore });
+  const vendorLookupService = createVendorLookupService({ siteStore });
+  const fortiGateClient = createFortiGateClient({ siteStore, vendorLookupService });
   const siteConfigArchiveService = createSiteConfigArchiveService({ siteStore });
   const inventoryService = createInventoryService({ siteStore, fortiGateClient });
   const alertService = createAlertService({ siteStore, fortiGateClient });

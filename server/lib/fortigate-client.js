@@ -494,16 +494,23 @@ const mapConnectionType = (item) => {
 
 const mapClientNetwork = (item) => item.fortiap_ssid || (item.fortiswitch_vlan_id ? `VLAN ${item.fortiswitch_vlan_id}` : 'Unknown');
 
-const mapManagedClient = (site, item) => {
+const mapManagedClient = (site, item, resolvedVendor = null) => {
   const mac = String(item.mac || item.master_mac || '').toLowerCase();
   const connectionType = mapConnectionType(item);
   const connectedDeviceType = connectionType === 'wired' ? 'switch' : 'ap';
   const connectedPort = item.fortiswitch_port_name ? String(item.fortiswitch_port_name) : undefined;
   const connectedApName = item.fortiap_name ? String(item.fortiap_name) : undefined;
+  const vendor = resolvedVendor || item.hardware_vendor || undefined;
+  const hasUnknownName = !String(item.hostname || '').trim();
+  const derivedName = hasUnknownName
+    ? vendor
+      ? `Unknown Client - (${vendor})`
+      : 'Unknown Client'
+    : String(item.hostname);
 
   return {
     id: `${site.id}--client--${mac || item.ipv4_address || item.hostname || 'unknown'}`,
-    name: item.hostname || item.hardware_vendor || item.mac || 'Client',
+    name: derivedName,
     username: item.hostname || item.host_src || 'unidentified',
     connectionType,
     ip: item.ipv4_address || '',
@@ -516,7 +523,7 @@ const mapManagedClient = (site, item) => {
     status: mapClientStatus(item),
     lastSeen: maybeIsoFromUnix(item.last_seen) || new Date().toISOString(),
     hostname: item.hostname || undefined,
-    vendor: item.hardware_vendor || undefined,
+    vendor,
     osName: item.os_name || undefined,
     osVersion: item.os_version || undefined,
     detectedInterface: item.detected_interface || undefined,
@@ -1207,7 +1214,7 @@ const mapFortiGateDevice = (site, summary, interfaces = [], details = {}) => ({
   lastSyncError: summary.lastSyncError ?? null,
 });
 
-export const createFortiGateClient = ({ siteStore }) => ({
+export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
   async summarizeSite(site) {
     let workingSite = site;
     if (site.fortigate_ip && shouldRefreshLatency(site)) {
@@ -1744,8 +1751,22 @@ export const createFortiGateClient = ({ siteStore }) => ({
     );
 
     const devices = Array.isArray(payload.results) ? payload.results : [];
-    return devices
-      .filter((item) => !isInfrastructureDevice(item))
-      .map((item) => mapManagedClient(site, item));
+    const filteredDevices = devices.filter((item) => !isInfrastructureDevice(item));
+
+    return Promise.all(
+      filteredDevices.map(async (item) => {
+        const shouldLookupVendor =
+          vendorLookupService &&
+          !String(item.hostname || '').trim() &&
+          !String(item.hardware_vendor || '').trim() &&
+          String(item.mac || item.master_mac || '').trim();
+
+        const resolvedVendor = shouldLookupVendor
+          ? await vendorLookupService.lookupByMac(String(item.mac || item.master_mac || '')).catch(() => null)
+          : null;
+
+        return mapManagedClient(site, item, resolvedVendor);
+      }),
+    );
   },
 });

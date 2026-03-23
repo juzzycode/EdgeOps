@@ -119,6 +119,14 @@ export const createSiteStore = ({ db }) => ({
     await db.exec(`
       CREATE INDEX IF NOT EXISTS idx_host_scan_cache_target_mac
         ON host_scan_cache(site_id, target_mac, scanned_at DESC);
+
+      CREATE TABLE IF NOT EXISTS mac_vendor_cache (
+        mac_address TEXT PRIMARY KEY,
+        vendor_name TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
   },
 
@@ -539,5 +547,53 @@ export const createSiteStore = ({ db }) => ({
     );
 
     return this.getHostScan(siteId, { targetIp, targetMac, scanMode });
+  },
+
+  async getMacVendorLookup(macAddress) {
+    return (
+      (await db.get(
+        `
+          SELECT *
+          FROM mac_vendor_cache
+          WHERE mac_address = ?
+        `,
+        macAddress,
+      )) ?? null
+    );
+  },
+
+  async upsertMacVendorLookup({ macAddress, vendorName, source }) {
+    const existing = await this.getMacVendorLookup(macAddress);
+    const updatedAt = nowIso();
+
+    if (!existing) {
+      await db.run(
+        `
+          INSERT INTO mac_vendor_cache (
+            mac_address, vendor_name, source, created_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        macAddress,
+        vendorName,
+        source,
+        updatedAt,
+        updatedAt,
+      );
+    } else {
+      await db.run(
+        `
+          UPDATE mac_vendor_cache
+          SET vendor_name = ?, source = ?, updated_at = ?
+          WHERE mac_address = ?
+        `,
+        vendorName,
+        source,
+        updatedAt,
+        macAddress,
+      );
+    }
+
+    return this.getMacVendorLookup(macAddress);
   },
 });
