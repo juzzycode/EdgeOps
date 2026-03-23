@@ -20,6 +20,11 @@ const buildVersion = (items) => {
 const buildSiteMap = (sites) => new Map(sites.map((site) => [site.id, site]));
 const buildFortiGateDeviceId = (siteId) => `fortigate--${siteId}`;
 
+const isGenericTargetLabel = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return !normalized || ['no staged target', 'latest staged target', 'managed by fortigate', 'unknown'].includes(normalized);
+};
+
 export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
   async listProfiles({ siteId } = {}) {
     const sites = siteId ? [await siteStore.getSiteById(siteId)].filter(Boolean) : await siteStore.listSites();
@@ -153,7 +158,7 @@ export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
       const site = siteMap.get(device.siteId);
       const current = String(device.firmware || 'Unknown');
       const target = String(device.targetFirmware || current);
-      const compliant = current === target;
+      const compliant = isGenericTargetLabel(target) || current === target;
       const blocked = device.status === 'offline';
       const compliance = compliant ? 'compliant' : blocked ? 'blocked' : 'pending';
       const eligible = !blocked;
