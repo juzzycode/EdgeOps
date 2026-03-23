@@ -28,6 +28,8 @@ export const FortiGateDetailPage = () => {
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState('');
   const [deepScanEnabled, setDeepScanEnabled] = useState(false);
+  const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
+  const [scanElapsedMs, setScanElapsedMs] = useState(0);
 
   useEffect(() => {
     api.getFortiGateById(id).then(setDevice).catch(() => setDevice(null));
@@ -47,6 +49,8 @@ export const FortiGateDetailPage = () => {
     setScanResult(null);
     setScanError('');
     setDeepScanEnabled(false);
+    setScanStartedAt(null);
+    setScanElapsedMs(0);
   }, [id]);
 
   const interfaceSummary = useMemo(() => {
@@ -106,6 +110,31 @@ export const FortiGateDetailPage = () => {
   useEffect(() => setPolicyPage(1), [policyQuery]);
   useEffect(() => setLeasePage(1), [leaseQuery]);
 
+  useEffect(() => {
+    if (!device?.id || !selectedLease?.ip) return;
+
+    api
+      .getCachedFortiGateHostScan(device.id, selectedLease.ip, { deep: deepScanEnabled })
+      .then((cachedScan) => {
+        setScanResult(cachedScan);
+        setScanError(cachedScan?.status === 'failed' && cachedScan.error ? cachedScan.error : '');
+      })
+      .catch(() => {
+        setScanResult(null);
+        setScanError('');
+      });
+  }, [device?.id, selectedLease?.ip, deepScanEnabled]);
+
+  useEffect(() => {
+    if (!scanLoading || scanStartedAt === null) return undefined;
+
+    const timer = window.setInterval(() => {
+      setScanElapsedMs(Date.now() - scanStartedAt);
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [scanLoading, scanStartedAt]);
+
   if (device === undefined) return <LoadingState label="Loading FortiGate detail..." />;
   if (device === null) {
     return <ErrorState title="FortiGate not found" description="The requested FortiGate could not be found for any configured site." />;
@@ -114,6 +143,8 @@ export const FortiGateDetailPage = () => {
   const runLeaseScan = async () => {
     if (!selectedLease?.ip) return;
     setScanLoading(true);
+    setScanStartedAt(Date.now());
+    setScanElapsedMs(0);
     setScanError('');
     try {
       const result = await api.scanFortiGateHost(device.id, selectedLease.ip, { deep: deepScanEnabled });
@@ -126,6 +157,7 @@ export const FortiGateDetailPage = () => {
       setScanError(error instanceof Error ? error.message : 'Unable to scan the selected host');
     } finally {
       setScanLoading(false);
+      setScanStartedAt(null);
     }
   };
 
@@ -359,6 +391,8 @@ export const FortiGateDetailPage = () => {
                           setSelectedLease(lease);
                           setScanResult(null);
                           setScanError('');
+                          setScanStartedAt(null);
+                          setScanElapsedMs(0);
                         }} type="button">
                           {lease.ip}
                         </button>{' '}
@@ -416,6 +450,8 @@ export const FortiGateDetailPage = () => {
           setScanResult(null);
           setScanError('');
           setScanLoading(false);
+          setScanStartedAt(null);
+          setScanElapsedMs(0);
         }}
         actions={(
           <button
@@ -425,7 +461,7 @@ export const FortiGateDetailPage = () => {
             type="button"
           >
             <ScanSearch className="h-4 w-4" />
-            {scanLoading ? 'Scanning...' : 'Scan Host'}
+            {scanLoading ? `Scanning... ${formatScanElapsed(scanElapsedMs)}` : 'Scan Host'}
           </button>
         )}
       >
@@ -436,6 +472,7 @@ export const FortiGateDetailPage = () => {
             <DrawerItem label="Interface" value={selectedLease.interface} />
             <DrawerItem label="Status" value={selectedLease.status} />
             <DrawerItem label="Expires" value={selectedLease.expiresAt ? formatRelativeTime(selectedLease.expiresAt) : 'Unknown'} />
+            <DrawerItem label="Displayed Scan" value={deepScanEnabled ? 'Deep cached/live result' : 'Basic cached/live result'} />
             <label className="flex items-center justify-between gap-4 rounded-2xl bg-soft px-4 py-3">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted">Deep Scan</p>
@@ -480,7 +517,7 @@ export const FortiGateDetailPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl bg-soft px-4 py-6 text-sm text-muted">Run a scan to inspect the leased host and display service results here.</div>
+              <div className="rounded-2xl bg-soft px-4 py-6 text-sm text-muted">No cached scan yet for this host and scan mode. Run a scan to inspect the leased host and store the result here.</div>
             )}
           </div>
         ) : null}
@@ -537,6 +574,13 @@ const DrawerItem = ({ label, value }: { label: string; value: string }) => (
     <p className="mt-2 text-sm font-medium text-text">{value}</p>
   </div>
 );
+
+const formatScanElapsed = (valueMs: number) => {
+  const totalSeconds = Math.max(0, Math.floor(valueMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
 
 const pageSize = 10;
 

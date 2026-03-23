@@ -147,6 +147,7 @@ export interface HostScanResult {
   summary: string;
   openPorts: HostScanPort[];
   rawOutput: string;
+  scanMode?: 'basic' | 'deep';
   error?: string | null;
 }
 

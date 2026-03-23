@@ -1,6 +1,21 @@
 import express from 'express';
 import { ensureSiteAccess, getScopedSiteId, requireOperator } from '../lib/auth.js';
 
+const normalizeScanRow = (row) => {
+  if (!row) return null;
+  return {
+    target: row.target_ip,
+    scannedAt: row.scanned_at,
+    status: row.status,
+    hostState: row.host_state,
+    summary: row.summary,
+    openPorts: JSON.parse(row.open_ports_json || '[]'),
+    rawOutput: row.raw_output || '',
+    error: row.error_text || null,
+    scanMode: row.scan_mode,
+  };
+};
+
 export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanService }) => {
   const router = express.Router();
 
@@ -66,6 +81,7 @@ export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanSer
       }
 
       const targetIp = typeof request.body?.ip === 'string' ? request.body.ip.trim() : '';
+      const scanMode = Boolean(request.body?.deep) ? 'deep' : 'basic';
       if (!targetIp) {
         response.status(400).json({ error: 'ip is required' });
         return;
@@ -74,7 +90,48 @@ export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanSer
       const scan = await hostScanService.scanTarget(targetIp, {
         deep: Boolean(request.body?.deep),
       });
+      await siteStore.upsertHostScan({
+        siteId: site.id,
+        targetIp,
+        scanMode,
+        status: scan.status,
+        hostState: scan.hostState,
+        summary: scan.summary,
+        openPorts: scan.openPorts,
+        rawOutput: scan.rawOutput,
+        error: scan.error ?? null,
+        scannedAt: scan.scannedAt,
+      });
       response.status(scan.status === 'success' ? 200 : 502).json({ scan });
+      return;
+    }
+
+    response.status(404).json({ error: 'FortiGate not found' });
+  });
+
+  router.get('/:id/scan-host', async (request, response) => {
+    const scopedSiteId = request.auth?.user?.siteId ?? null;
+    const sites = scopedSiteId ? [await siteStore.getSiteById(scopedSiteId)].filter(Boolean) : await siteStore.listSites();
+
+    for (const site of sites) {
+      if (!ensureSiteAccess(request, response, site.id)) {
+        return;
+      }
+
+      const device = await fortiGateClient.getFortiGateDetailForSite(site, request.params.id).catch(() => null);
+      if (!device) {
+        continue;
+      }
+
+      const targetIp = typeof request.query.ip === 'string' ? request.query.ip.trim() : '';
+      const scanMode = request.query.deep === 'true' ? 'deep' : 'basic';
+      if (!targetIp) {
+        response.status(400).json({ error: 'ip is required' });
+        return;
+      }
+
+      const scan = normalizeScanRow(await siteStore.getHostScan(site.id, targetIp, scanMode));
+      response.json({ scan });
       return;
     }
 

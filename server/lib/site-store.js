@@ -89,6 +89,26 @@ export const createSiteStore = ({ db }) => ({
 
       CREATE INDEX IF NOT EXISTS idx_switch_port_overrides_switch
         ON switch_port_overrides(switch_id, port_number);
+
+      CREATE TABLE IF NOT EXISTS host_scan_cache (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        target_ip TEXT NOT NULL,
+        scan_mode TEXT NOT NULL,
+        status TEXT NOT NULL,
+        host_state TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        open_ports_json TEXT NOT NULL,
+        raw_output TEXT NOT NULL,
+        error_text TEXT,
+        scanned_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(site_id, target_ip, scan_mode),
+        FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_host_scan_cache_target
+        ON host_scan_cache(site_id, target_ip, scanned_at DESC);
     `);
   },
 
@@ -416,5 +436,72 @@ export const createSiteStore = ({ db }) => ({
       switchId,
       portNumber,
     );
+  },
+
+  async getHostScan(siteId, targetIp, scanMode = 'basic') {
+    return (
+      (await db.get(
+        `
+          SELECT *
+          FROM host_scan_cache
+          WHERE site_id = ? AND target_ip = ? AND scan_mode = ?
+          LIMIT 1
+        `,
+        siteId,
+        targetIp,
+        scanMode,
+      )) ?? null
+    );
+  },
+
+  async upsertHostScan({ siteId, targetIp, scanMode, status, hostState, summary, openPorts, rawOutput, error, scannedAt }) {
+    const existing = await this.getHostScan(siteId, targetIp, scanMode);
+    const updatedAt = nowIso();
+
+    if (!existing) {
+      const id = makeId('hostscan');
+      await db.run(
+        `
+          INSERT INTO host_scan_cache (
+            id, site_id, target_ip, scan_mode, status, host_state, summary, open_ports_json,
+            raw_output, error_text, scanned_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        id,
+        siteId,
+        targetIp,
+        scanMode,
+        status,
+        hostState,
+        summary,
+        JSON.stringify(openPorts ?? []),
+        rawOutput ?? '',
+        error ?? null,
+        scannedAt,
+        updatedAt,
+      );
+
+      return this.getHostScan(siteId, targetIp, scanMode);
+    }
+
+    await db.run(
+      `
+        UPDATE host_scan_cache
+        SET status = ?, host_state = ?, summary = ?, open_ports_json = ?, raw_output = ?, error_text = ?, scanned_at = ?, updated_at = ?
+        WHERE id = ?
+      `,
+      status,
+      hostState,
+      summary,
+      JSON.stringify(openPorts ?? []),
+      rawOutput ?? '',
+      error ?? null,
+      scannedAt,
+      updatedAt,
+      existing.id,
+    );
+
+    return this.getHostScan(siteId, targetIp, scanMode);
   },
 });

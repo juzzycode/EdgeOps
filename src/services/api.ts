@@ -214,6 +214,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ip, deep: Boolean(options?.deep) }),
     }).then((payload) => payload.scan),
+  getCachedFortiGateHostScan: async (id: string, ip: string, options?: { deep?: boolean }) => {
+    const search = new URLSearchParams({ ip });
+    if (options?.deep) search.set('deep', 'true');
+    return jsonRequest<{ scan: HostScanResult | null }>(`/api/fortigates/${encodeURIComponent(id)}/scan-host?${search.toString()}`).then((payload) => payload.scan);
+  },
   getAps: async (siteId?: string | 'all') =>
     jsonRequest<{ accessPoints: AccessPoint[] }>(
       siteId && siteId !== 'all' ? `/api/aps?siteId=${encodeURIComponent(siteId)}` : '/api/aps',
