@@ -494,24 +494,37 @@ const mapConnectionType = (item) => {
 
 const mapClientNetwork = (item) => item.fortiap_ssid || (item.fortiswitch_vlan_id ? `VLAN ${item.fortiswitch_vlan_id}` : 'Unknown');
 
+const normalizeClientIdentityValue = (value) => String(value || '').trim();
+
+const isMacLikeValue = (value) => /^[0-9a-f]{2}([-:.]?[0-9a-f]{2}){5}$/i.test(normalizeClientIdentityValue(value));
+
+const isPlaceholderIdentity = (value) => {
+  const normalized = normalizeClientIdentityValue(value).toLowerCase();
+  if (!normalized) return true;
+  if (['unknown', 'unknown client', 'n/a', 'na', 'none', 'null', 'unidentified'].includes(normalized)) return true;
+  return isMacLikeValue(normalized);
+};
+
 const mapManagedClient = (site, item, resolvedVendor = null) => {
   const mac = String(item.mac || item.master_mac || '').toLowerCase();
   const connectionType = mapConnectionType(item);
   const connectedDeviceType = connectionType === 'wired' ? 'switch' : 'ap';
   const connectedPort = item.fortiswitch_port_name ? String(item.fortiswitch_port_name) : undefined;
   const connectedApName = item.fortiap_name ? String(item.fortiap_name) : undefined;
-  const vendor = resolvedVendor || item.hardware_vendor || undefined;
-  const hasUnknownName = !String(item.hostname || '').trim();
+  const rawHostname = normalizeClientIdentityValue(item.hostname);
+  const rawVendor = normalizeClientIdentityValue(item.hardware_vendor);
+  const vendor = resolvedVendor || (isPlaceholderIdentity(rawVendor) ? undefined : rawVendor) || undefined;
+  const hasUnknownName = isPlaceholderIdentity(rawHostname);
   const derivedName = hasUnknownName
     ? vendor
       ? `Unknown Client - (${vendor})`
       : 'Unknown Client'
-    : String(item.hostname);
+    : rawHostname;
 
   return {
     id: `${site.id}--client--${mac || item.ipv4_address || item.hostname || 'unknown'}`,
     name: derivedName,
-    username: item.hostname || item.host_src || 'unidentified',
+    username: rawHostname || item.host_src || 'unidentified',
     connectionType,
     ip: item.ipv4_address || '',
     mac: String(item.mac || ''),
@@ -522,7 +535,7 @@ const mapManagedClient = (site, item, resolvedVendor = null) => {
     usageGb: 0,
     status: mapClientStatus(item),
     lastSeen: maybeIsoFromUnix(item.last_seen) || new Date().toISOString(),
-    hostname: item.hostname || undefined,
+    hostname: hasUnknownName ? undefined : rawHostname,
     vendor,
     osName: item.os_name || undefined,
     osVersion: item.os_version || undefined,
@@ -1757,8 +1770,8 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       filteredDevices.map(async (item) => {
         const shouldLookupVendor =
           vendorLookupService &&
-          !String(item.hostname || '').trim() &&
-          !String(item.hardware_vendor || '').trim() &&
+          isPlaceholderIdentity(item.hostname) &&
+          isPlaceholderIdentity(item.hardware_vendor) &&
           String(item.mac || item.master_mac || '').trim();
 
         const resolvedVendor = shouldLookupVendor
