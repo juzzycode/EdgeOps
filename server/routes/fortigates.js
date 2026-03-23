@@ -105,7 +105,7 @@ export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanSer
         error: scan.error ?? null,
         scannedAt: scan.scannedAt,
       });
-      response.status(scan.status === 'success' ? 200 : 502).json({ scan });
+      response.status(200).json({ scan });
       return;
     }
 
