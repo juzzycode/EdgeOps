@@ -11,6 +11,27 @@ import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import type { FirmwareStatus, Site } from '@/types/models';
 
+const formatAvailableUpgrade = (item: FirmwareStatus) => {
+  if (item.deviceType === 'fortigate') {
+    return item.target === item.current ? 'No separate target' : item.target;
+  }
+
+  const normalizedTarget = String(item.target || '').trim().toLowerCase();
+  if (!normalizedTarget || normalizedTarget === 'no staged target') {
+    return 'Not exposed';
+  }
+
+  if (normalizedTarget === 'latest available firmware') {
+    return 'Latest available firmware';
+  }
+
+  if (item.target === item.current) {
+    return 'None';
+  }
+
+  return item.target;
+};
+
 export const FirmwarePage = () => {
   const [rows, setRows] = useState<FirmwareStatus[] | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
@@ -81,7 +102,7 @@ export const FirmwarePage = () => {
           <p className="mt-1 text-xs text-muted">Serial: {item.serial ?? 'Unavailable'}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="rounded-full bg-canvas px-2 py-1 text-[11px] font-medium text-text">Current: {item.current}</span>
-            <span className="rounded-full bg-canvas px-2 py-1 text-[11px] font-medium text-text">Target: {item.target}</span>
+            <span className="rounded-full bg-canvas px-2 py-1 text-[11px] font-medium text-text">Available: {formatAvailableUpgrade(item)}</span>
           </div>
         </div>
       ),
@@ -92,7 +113,8 @@ export const FirmwarePage = () => {
       render: (item) => item.siteName ?? item.siteId ?? 'Unknown',
     },
     { key: 'current', header: 'Current Version', render: (item) => item.current },
-    { key: 'target', header: 'Target Version', render: (item) => item.target },
+    { key: 'available', header: 'Upgrade Available', render: (item) => formatAvailableUpgrade(item) },
+    { key: 'target', header: 'Configured Target', render: (item) => item.target },
     { key: 'compliance', header: 'Compliance', render: (item) => <StatusBadge value={item.compliance} /> },
     { key: 'group', header: 'Rollout Group', render: (item) => item.rolloutGroup },
     { key: 'eligible', header: 'Eligible', render: (item) => (item.eligible ? 'Yes' : 'No') },
@@ -102,7 +124,7 @@ export const FirmwarePage = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Lifecycle" title="Firmware Lifecycle" description="Live firmware compliance derived from the current switch and AP inventory, organized for staged rollout planning." />
+      <PageHeader eyebrow="Lifecycle" title="Firmware Lifecycle" description="Live firmware compliance derived from the current switch and AP inventory, with separate visibility into running versions, configured targets, and upgrade availability exposed by FortiGate." />
       {error ? <ErrorState title="Firmware API unavailable" description={error} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
