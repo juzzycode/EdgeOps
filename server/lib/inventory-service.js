@@ -18,6 +18,7 @@ const buildVersion = (items) => {
 };
 
 const buildSiteMap = (sites) => new Map(sites.map((site) => [site.id, site]));
+const buildFortiGateDeviceId = (siteId) => `fortigate--${siteId}`;
 
 export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
   async listProfiles({ siteId } = {}) {
@@ -140,9 +141,11 @@ export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
   async listFirmwareStatuses({ siteId } = {}) {
     const sites = siteId ? [await siteStore.getSiteById(siteId)].filter(Boolean) : await siteStore.listSites();
     const siteMap = buildSiteMap(sites);
+    const siteSummaryResults = await Promise.allSettled(sites.map((site) => fortiGateClient.summarizeSite(site)));
     const switchResults = await Promise.allSettled(sites.map((site) => fortiGateClient.listManagedSwitchesForSite(site)));
     const apResults = await Promise.allSettled(sites.map((site) => fortiGateClient.listManagedAccessPointsForSite(site)));
 
+    const summarizedSites = siteSummaryResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
     const switches = switchResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
     const accessPoints = apResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
 
@@ -177,18 +180,18 @@ export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
       };
     };
 
-    const fortiGates = sites
-      .filter((site) => site.fortigate_ip || site.fortigate_name || site.fortigate_version || site.fortigate_serial)
+    const fortiGates = summarizedSites
+      .filter((site) => site.fortigateIp || site.fortigateName || site.fortigateVersion || site.fortigateSerial)
       .map((site) => {
-        const current = String(site.fortigate_version || 'Unknown');
-        const blocked = !site.fortigate_version;
+        const current = String(site.fortigateVersion || 'Unknown');
+        const blocked = !site.fortigateVersion;
 
         return {
           id: `fw-fortigate-${site.id}`,
           deviceType: 'fortigate',
-          deviceId: site.id,
-          deviceName: site.fortigate_name || site.name,
-          serial: site.fortigate_serial || undefined,
+          deviceId: buildFortiGateDeviceId(site.id),
+          deviceName: site.fortigateName || site.name,
+          serial: site.fortigateSerial || undefined,
           siteId: site.id,
           siteName: site.name,
           current,

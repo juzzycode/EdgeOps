@@ -69,7 +69,9 @@ export const FirmwarePage = () => {
       render: (item) => (
         <div>
           {item.deviceType === 'fortigate' ? (
-            <p className="font-medium text-text">{item.deviceName ?? item.deviceId}</p>
+            <Link className="font-medium text-accent hover:underline" to={`/fortigates/${item.deviceId}`}>
+              {item.deviceName ?? item.deviceId}
+            </Link>
           ) : (
             <Link className="font-medium text-accent hover:underline" to={item.deviceType === 'switch' ? `/switches/${item.deviceId}` : `/aps/${item.deviceId}`}>
               {item.deviceName ?? item.deviceId}
