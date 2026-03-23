@@ -4,6 +4,14 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+const runNmap = async (args, timeout) => {
+  const { stdout, stderr } = await execFileAsync('nmap', args, {
+    timeout,
+    windowsHide: true,
+  });
+  return [stdout, stderr].filter(Boolean).join('\n').trim();
+};
+
 const parseOpenPorts = (output) =>
   String(output || '')
     .split(/\r?\n/)
@@ -39,17 +47,48 @@ export const createHostScanService = () => ({
 
     try {
       const deep = Boolean(options.deep);
-      const args = deep
-        ? ['-Pn', '-n', '-A', '-T4', '-p-', '--version-all', String(target)]
-        : ['-Pn', '-n', '-sV', '--top-ports', '100', String(target)];
-      const { stdout, stderr } = await execFileAsync(
-        'nmap',
-        args,
-        { timeout: deep ? 180_000 : 45_000, windowsHide: true },
-      );
-      const rawOutput = [stdout, stderr].filter(Boolean).join('\n').trim();
-      const openPorts = parseOpenPorts(rawOutput);
-      const hostState = parseHostState(rawOutput);
+      let rawOutput = '';
+      let openPorts = [];
+      let hostState = 'unknown';
+
+      if (deep) {
+        const discoveryOutput = await runNmap(
+          ['-Pn', '-n', '-T4', '-p-', '--min-rate', '5000', String(target)],
+          180_000,
+        );
+        const discoveryPorts = parseOpenPorts(discoveryOutput);
+        const hostStateFromDiscovery = parseHostState(discoveryOutput);
+
+        if (discoveryPorts.length) {
+          const portList = discoveryPorts.map((entry) => entry.port).join(',');
+          const serviceOutput = await runNmap(
+            ['-Pn', '-n', '-T4', '-sV', '-sC', '-p', portList, String(target)],
+            180_000,
+          );
+          rawOutput = [
+            '=== Deep Scan: Port Discovery ===',
+            discoveryOutput,
+            '',
+            '=== Deep Scan: Service Enumeration ===',
+            serviceOutput,
+          ]
+            .filter(Boolean)
+            .join('\n');
+          openPorts = parseOpenPorts(serviceOutput);
+          hostState = parseHostState(serviceOutput) !== 'unknown' ? parseHostState(serviceOutput) : hostStateFromDiscovery;
+        } else {
+          rawOutput = [
+            '=== Deep Scan: Port Discovery ===',
+            discoveryOutput,
+          ].join('\n');
+          openPorts = discoveryPorts;
+          hostState = hostStateFromDiscovery;
+        }
+      } else {
+        rawOutput = await runNmap(['-Pn', '-n', '-sV', '--top-ports', '100', String(target)], 45_000);
+        openPorts = parseOpenPorts(rawOutput);
+        hostState = parseHostState(rawOutput);
+      }
 
       return {
         target: String(target),
