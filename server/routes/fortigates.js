@@ -5,6 +5,7 @@ const normalizeScanRow = (row) => {
   if (!row) return null;
   return {
     target: row.target_ip,
+    targetMac: row.target_mac || null,
     scannedAt: row.scanned_at,
     status: row.status,
     hostState: row.host_state,
@@ -81,6 +82,7 @@ export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanSer
       }
 
       const targetIp = typeof request.body?.ip === 'string' ? request.body.ip.trim() : '';
+      const targetMac = typeof request.body?.mac === 'string' ? request.body.mac.trim() : '';
       const scanMode = Boolean(request.body?.deep) ? 'deep' : 'basic';
       if (!targetIp) {
         response.status(400).json({ error: 'ip is required' });
@@ -93,6 +95,7 @@ export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanSer
       await siteStore.upsertHostScan({
         siteId: site.id,
         targetIp,
+        targetMac,
         scanMode,
         status: scan.status,
         hostState: scan.hostState,
@@ -124,13 +127,14 @@ export const createFortiGatesRouter = ({ siteStore, fortiGateClient, hostScanSer
       }
 
       const targetIp = typeof request.query.ip === 'string' ? request.query.ip.trim() : '';
+      const targetMac = typeof request.query.mac === 'string' ? request.query.mac.trim() : '';
       const scanMode = request.query.deep === 'true' ? 'deep' : 'basic';
-      if (!targetIp) {
-        response.status(400).json({ error: 'ip is required' });
+      if (!targetIp && !targetMac) {
+        response.status(400).json({ error: 'ip or mac is required' });
         return;
       }
 
-      const scan = normalizeScanRow(await siteStore.getHostScan(site.id, targetIp, scanMode));
+      const scan = normalizeScanRow(await siteStore.getHostScan(site.id, { targetIp, targetMac, scanMode }));
       response.json({ scan });
       return;
     }

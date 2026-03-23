@@ -141,6 +141,7 @@ export interface HostScanPort {
 
 export interface HostScanResult {
   target: string;
+  targetMac?: string | null;
   scannedAt: string;
   status: 'success' | 'failed';
   hostState: string;

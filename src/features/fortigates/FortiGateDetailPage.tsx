@@ -114,7 +114,7 @@ export const FortiGateDetailPage = () => {
     if (!device?.id || !selectedLease?.ip) return;
 
     api
-      .getCachedFortiGateHostScan(device.id, selectedLease.ip, { deep: deepScanEnabled })
+      .getCachedFortiGateHostScan(device.id, selectedLease.ip, { deep: deepScanEnabled, mac: selectedLease.mac })
       .then((cachedScan) => {
         setScanResult(cachedScan);
         setScanError(cachedScan?.status === 'failed' && cachedScan.error ? cachedScan.error : '');
@@ -147,7 +147,10 @@ export const FortiGateDetailPage = () => {
     setScanElapsedMs(0);
     setScanError('');
     try {
-      const result = await api.scanFortiGateHost(device.id, selectedLease.ip, { deep: deepScanEnabled });
+      const result = await api.scanFortiGateHost(device.id, selectedLease.ip, {
+        deep: deepScanEnabled,
+        mac: selectedLease.mac,
+      });
       setScanResult(result);
       if (result.status === 'failed' && result.error) {
         setScanError(result.error);
@@ -496,6 +499,7 @@ export const FortiGateDetailPage = () => {
             {scanResult ? (
               <div className="space-y-3">
                 <DrawerItem label="Scan Time" value={formatRelativeTime(scanResult.scannedAt)} />
+                <DrawerItem label="Cached Identity" value={scanResult.targetMac || selectedLease.mac} />
                 <DrawerItem label="Host State" value={scanResult.hostState} />
                 <DrawerItem label="Summary" value={scanResult.summary} />
                 {scanResult.openPorts.length ? (

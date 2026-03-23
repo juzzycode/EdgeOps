@@ -110,6 +110,16 @@ export const createSiteStore = ({ db }) => ({
       CREATE INDEX IF NOT EXISTS idx_host_scan_cache_target
         ON host_scan_cache(site_id, target_ip, scanned_at DESC);
     `);
+
+    const hostScanColumns = await db.all(`PRAGMA table_info(host_scan_cache)`);
+    const hostScanColumnNames = new Set(hostScanColumns.map((column) => String(column.name)));
+    if (!hostScanColumnNames.has('target_mac')) {
+      await db.exec(`ALTER TABLE host_scan_cache ADD COLUMN target_mac TEXT`);
+    }
+    await db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_host_scan_cache_target_mac
+        ON host_scan_cache(site_id, target_mac, scanned_at DESC);
+    `);
   },
 
   async listSites() {
@@ -438,7 +448,30 @@ export const createSiteStore = ({ db }) => ({
     );
   },
 
-  async getHostScan(siteId, targetIp, scanMode = 'basic') {
+  async getHostScan(siteId, { targetIp, targetMac, scanMode = 'basic' }) {
+    if (targetMac) {
+      const byMac =
+        (await db.get(
+          `
+            SELECT *
+            FROM host_scan_cache
+            WHERE site_id = ? AND target_mac = ? AND scan_mode = ?
+            LIMIT 1
+          `,
+          siteId,
+          targetMac,
+          scanMode,
+        )) ?? null;
+
+      if (byMac) {
+        return byMac;
+      }
+    }
+
+    if (!targetIp) {
+      return null;
+    }
+
     return (
       (await db.get(
         `
@@ -454,8 +487,8 @@ export const createSiteStore = ({ db }) => ({
     );
   },
 
-  async upsertHostScan({ siteId, targetIp, scanMode, status, hostState, summary, openPorts, rawOutput, error, scannedAt }) {
-    const existing = await this.getHostScan(siteId, targetIp, scanMode);
+  async upsertHostScan({ siteId, targetIp, targetMac, scanMode, status, hostState, summary, openPorts, rawOutput, error, scannedAt }) {
+    const existing = await this.getHostScan(siteId, { targetIp, targetMac, scanMode });
     const updatedAt = nowIso();
 
     if (!existing) {
@@ -463,14 +496,15 @@ export const createSiteStore = ({ db }) => ({
       await db.run(
         `
           INSERT INTO host_scan_cache (
-            id, site_id, target_ip, scan_mode, status, host_state, summary, open_ports_json,
+            id, site_id, target_ip, target_mac, scan_mode, status, host_state, summary, open_ports_json,
             raw_output, error_text, scanned_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         id,
         siteId,
         targetIp,
+        targetMac ?? null,
         scanMode,
         status,
         hostState,
@@ -482,15 +516,17 @@ export const createSiteStore = ({ db }) => ({
         updatedAt,
       );
 
-      return this.getHostScan(siteId, targetIp, scanMode);
+      return this.getHostScan(siteId, { targetIp, targetMac, scanMode });
     }
 
     await db.run(
       `
         UPDATE host_scan_cache
-        SET status = ?, host_state = ?, summary = ?, open_ports_json = ?, raw_output = ?, error_text = ?, scanned_at = ?, updated_at = ?
+        SET target_ip = ?, target_mac = ?, status = ?, host_state = ?, summary = ?, open_ports_json = ?, raw_output = ?, error_text = ?, scanned_at = ?, updated_at = ?
         WHERE id = ?
       `,
+      targetIp,
+      targetMac ?? existing.target_mac ?? null,
       status,
       hostState,
       summary,
@@ -502,6 +538,6 @@ export const createSiteStore = ({ db }) => ({
       existing.id,
     );
 
-    return this.getHostScan(siteId, targetIp, scanMode);
+    return this.getHostScan(siteId, { targetIp, targetMac, scanMode });
   },
 });

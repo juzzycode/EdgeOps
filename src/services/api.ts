@@ -209,13 +209,15 @@ export const api = {
     ).then((payload) => payload.fortiGates),
   getFortiGateById: async (id: string) =>
     jsonRequest<{ fortiGate: FortiGateDevice }>(`/api/fortigates/${encodeURIComponent(id)}`).then((payload) => payload.fortiGate),
-  scanFortiGateHost: async (id: string, ip: string, options?: { deep?: boolean }) =>
+  scanFortiGateHost: async (id: string, ip: string, options?: { deep?: boolean; mac?: string }) =>
     jsonRequest<{ scan: HostScanResult }>(`/api/fortigates/${encodeURIComponent(id)}/scan-host`, {
       method: 'POST',
-      body: JSON.stringify({ ip, deep: Boolean(options?.deep) }),
+      body: JSON.stringify({ ip, mac: options?.mac ?? '', deep: Boolean(options?.deep) }),
     }).then((payload) => payload.scan),
-  getCachedFortiGateHostScan: async (id: string, ip: string, options?: { deep?: boolean }) => {
-    const search = new URLSearchParams({ ip });
+  getCachedFortiGateHostScan: async (id: string, ip: string, options?: { deep?: boolean; mac?: string }) => {
+    const search = new URLSearchParams();
+    if (ip) search.set('ip', ip);
+    if (options?.mac) search.set('mac', options.mac);
     if (options?.deep) search.set('deep', 'true');
     return jsonRequest<{ scan: HostScanResult | null }>(`/api/fortigates/${encodeURIComponent(id)}/scan-host?${search.toString()}`).then((payload) => payload.scan);
   },
