@@ -144,10 +144,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ force }),
     }).then((payload) => payload.snapshot),
-  getSiteConfigDiff: async (siteId: string, options?: { fromSnapshotId?: string; toSnapshotId?: string }) => {
+  getSiteConfigDiff: async (siteId: string, options?: { fromSnapshotId?: string; toSnapshotId?: string; filterRollingKeys?: boolean }) => {
     const search = new URLSearchParams();
     if (options?.fromSnapshotId) search.set('fromSnapshotId', options.fromSnapshotId);
     if (options?.toSnapshotId) search.set('toSnapshotId', options.toSnapshotId);
+    if (options?.filterRollingKeys) search.set('filterRollingKeys', 'true');
     const query = search.toString();
     return jsonRequest<{ diff: SiteConfigDiff }>(`/api/sites/${encodeURIComponent(siteId)}/config-diffs${query ? `?${query}` : ''}`).then((payload) => payload.diff);
   },

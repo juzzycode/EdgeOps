@@ -193,6 +193,9 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
       request.params.id,
       typeof request.query.fromSnapshotId === 'string' ? request.query.fromSnapshotId : undefined,
       typeof request.query.toSnapshotId === 'string' ? request.query.toSnapshotId : undefined,
+      {
+        filterRollingKeys: request.query.filterRollingKeys === 'true',
+      },
     );
 
     if (!diff) {

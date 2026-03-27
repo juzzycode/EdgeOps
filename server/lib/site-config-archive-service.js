@@ -11,6 +11,7 @@ const toSnapshotDate = (value = new Date()) => {
 };
 
 const toHash = (content) => crypto.createHash('sha256').update(content).digest('hex');
+const rollingKeyLinePattern = /^[A-Za-z0-9+/=]{32,}$/;
 
 const parseFortiGateTarget = (value) => {
   const raw = String(value || '').trim();
@@ -117,13 +118,26 @@ const serializeDiff = ({ fromSnapshot, toSnapshot, patchText, stats }) => ({
   stats,
 });
 
+const isRollingKeyLine = (line) => {
+  const trimmed = String(line || '').trim();
+  return trimmed.startsWith('set passphrase ENC ') || rollingKeyLinePattern.test(trimmed);
+};
+
+const stripRollingKeys = (content) =>
+  String(content || '')
+    .split(/\r?\n/)
+    .filter((line) => !isRollingKeyLine(line))
+    .join('\n');
+
 export const createSiteConfigArchiveService = ({ siteStore }) => {
-  const buildDiffFromSnapshots = (fromSnapshot, toSnapshot) => {
+  const buildDiffFromSnapshots = (fromSnapshot, toSnapshot, { filterRollingKeys = false } = {}) => {
+    const fromContent = filterRollingKeys ? stripRollingKeys(fromSnapshot.config_blob) : fromSnapshot.config_blob || '';
+    const toContent = filterRollingKeys ? stripRollingKeys(toSnapshot.config_blob) : toSnapshot.config_blob || '';
     const patchText = createTwoFilesPatch(
       `${fromSnapshot.snapshot_date}.conf`,
       `${toSnapshot.snapshot_date}.conf`,
-      fromSnapshot.config_blob || '',
-      toSnapshot.config_blob || '',
+      fromContent,
+      toContent,
       fromSnapshot.snapshot_date,
       toSnapshot.snapshot_date,
       { context: 3 },
@@ -250,7 +264,7 @@ export const createSiteConfigArchiveService = ({ siteStore }) => {
       };
     },
 
-    async getDiff(siteId, fromSnapshotId, toSnapshotId) {
+    async getDiff(siteId, fromSnapshotId, toSnapshotId, { filterRollingKeys = false } = {}) {
       const snapshots = await siteStore.listSiteConfigSnapshots(siteId);
       const successfulSnapshots = snapshots.filter((snapshot) => snapshot.status === 'success' && snapshot.config_blob);
 
@@ -265,7 +279,7 @@ export const createSiteConfigArchiveService = ({ siteStore }) => {
         return null;
       }
 
-      const diff = buildDiffFromSnapshots(fromSnapshot, toSnapshot);
+      const diff = buildDiffFromSnapshots(fromSnapshot, toSnapshot, { filterRollingKeys });
       return serializeDiff({
         fromSnapshot,
         toSnapshot,

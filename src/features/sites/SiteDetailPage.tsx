@@ -21,6 +21,7 @@ export const SiteDetailPage = () => {
   const [syncingSnapshot, setSyncingSnapshot] = useState(false);
   const [selectedToSnapshotId, setSelectedToSnapshotId] = useState<string>('');
   const [selectedFromSnapshotId, setSelectedFromSnapshotId] = useState<string>('');
+  const [filterRollingKeys, setFilterRollingKeys] = useState(true);
   const [history, setHistory] = useState<SiteHistoryPoint[]>([]);
   const [historicalAlerts, setHistoricalAlerts] = useState<Alert[]>([]);
   const [topology, setTopology] = useState<TopologyGraph | null>(null);
@@ -37,7 +38,11 @@ export const SiteDetailPage = () => {
     api.getSiteTopology(id).then(setTopology).catch(() => setTopology(null));
   }, [id]);
 
-  const refreshConfigArchive = async (preferredToSnapshotId?: string, preferredFromSnapshotId?: string) => {
+  const refreshConfigArchive = async (
+    preferredToSnapshotId?: string,
+    preferredFromSnapshotId?: string,
+    options?: { filterRollingKeys?: boolean },
+  ) => {
     setLoadingSnapshots(true);
     setConfigError(null);
 
@@ -56,7 +61,11 @@ export const SiteDetailPage = () => {
       setSelectedFromSnapshotId(fromSnapshotId);
 
       if (toSnapshotId && fromSnapshotId) {
-        setDiff(await api.getSiteConfigDiff(id, { fromSnapshotId, toSnapshotId }));
+        setDiff(await api.getSiteConfigDiff(id, {
+          fromSnapshotId,
+          toSnapshotId,
+          filterRollingKeys: options?.filterRollingKeys ?? filterRollingKeys,
+        }));
       } else {
         setDiff(null);
       }
@@ -72,6 +81,12 @@ export const SiteDetailPage = () => {
   useEffect(() => {
     void refreshConfigArchive();
   }, [id]);
+
+  useEffect(() => {
+    if (selectedFromSnapshotId && selectedToSnapshotId) {
+      void handleDiffSelectionChange(selectedFromSnapshotId, selectedToSnapshotId, filterRollingKeys);
+    }
+  }, [filterRollingKeys]);
 
   const successfulSnapshots = useMemo(
     () => snapshots.filter((snapshot) => snapshot.status === 'success'),
@@ -92,7 +107,11 @@ export const SiteDetailPage = () => {
     }
   };
 
-  const handleDiffSelectionChange = async (nextFromSnapshotId: string, nextToSnapshotId: string) => {
+  const handleDiffSelectionChange = async (
+    nextFromSnapshotId: string,
+    nextToSnapshotId: string,
+    nextFilterRollingKeys = filterRollingKeys,
+  ) => {
     setSelectedFromSnapshotId(nextFromSnapshotId);
     setSelectedToSnapshotId(nextToSnapshotId);
     setConfigError(null);
@@ -103,7 +122,11 @@ export const SiteDetailPage = () => {
     }
 
     try {
-      setDiff(await api.getSiteConfigDiff(id, { fromSnapshotId: nextFromSnapshotId, toSnapshotId: nextToSnapshotId }));
+      setDiff(await api.getSiteConfigDiff(id, {
+        fromSnapshotId: nextFromSnapshotId,
+        toSnapshotId: nextToSnapshotId,
+        filterRollingKeys: nextFilterRollingKeys,
+      }));
     } catch (requestError) {
       setDiff(null);
       setConfigError(requestError instanceof Error ? requestError.message : 'Unable to load config diff');
@@ -310,8 +333,8 @@ export const SiteDetailPage = () => {
         <Panel title="Daily Config Diffs" subtitle="Compare archived snapshots to see what changed between days.">
           {successfulSnapshots.length >= 2 ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <label>
+              <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
+                <label className="w-full md:w-56">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Compare From</span>
                   <select
                     className={inputClassName}
@@ -328,7 +351,7 @@ export const SiteDetailPage = () => {
                       ))}
                   </select>
                 </label>
-                <label>
+                <label className="w-full md:w-56">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">Compare To</span>
                   <select
                     className={inputClassName}
@@ -342,8 +365,17 @@ export const SiteDetailPage = () => {
                         <option key={snapshot.id} value={snapshot.id}>
                           {snapshot.snapshotDate}
                         </option>
-                      ))}
+                    ))}
                   </select>
+                </label>
+                <label className="inline-flex min-h-[3.25rem] items-center gap-3 rounded-2xl border border-border bg-soft px-4 py-3 text-sm text-text">
+                  <input
+                    checked={filterRollingKeys}
+                    className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+                    onChange={(event) => setFilterRollingKeys(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>Filter out rolling keys</span>
                 </label>
               </div>
 
