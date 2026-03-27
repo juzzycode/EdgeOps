@@ -12,6 +12,7 @@ const toSnapshotDate = (value = new Date()) => {
 
 const toHash = (content) => crypto.createHash('sha256').update(content).digest('hex');
 const rollingKeyLinePattern = /^[A-Za-z0-9+/=]{32,}$/;
+const rollingKeyFragmentPattern = /^[^\s=][^\s]*=$/;
 
 const parseFortiGateTarget = (value) => {
   const raw = String(value || '').trim();
@@ -119,12 +120,14 @@ const serializeDiff = ({ fromSnapshot, toSnapshot, patchText, stats }) => ({
 });
 
 const isRollingKeyLine = (line) => {
-  const trimmed = String(line || '').trim();
+  const raw = String(line || '');
+  const trimmed = raw.trim();
   return (
     trimmed.startsWith('set passphrase ENC ') ||
     trimmed.startsWith('set password ENC ') ||
     trimmed.startsWith('set sae-password ENC ') ||
-    rollingKeyLinePattern.test(trimmed)
+    rollingKeyLinePattern.test(trimmed) ||
+    (raw === trimmed && !trimmed.includes(' ') && rollingKeyFragmentPattern.test(trimmed))
   );
 };
 
