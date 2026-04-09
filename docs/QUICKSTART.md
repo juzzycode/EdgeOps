@@ -167,6 +167,13 @@ By default this:
 - starts the production frontend on `EDGEOPS_FRONTEND_PORT` or `8080`
 - proxies frontend `/api` traffic back to the backend automatically
 
+To stop a running production instance from another shell:
+
+```bash
+chmod +x ./stop.sh
+./stop.sh
+```
+
 For nginx and Apache examples, see `docs/DEPLOYMENT.md` plus the stub files in `docs/deploy/`.
 
 ## Typical Workflows

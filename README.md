@@ -86,6 +86,12 @@ chmod +x ./start.sh
 ```
 
 The production frontend serves `dist/` and proxies `/api` to the backend automatically.
+It also writes runtime state under `.run/edgeops/` so you can stop it from another shell:
+
+```bash
+chmod +x ./stop.sh
+./stop.sh
+```
 
 ## Implemented Pages
 

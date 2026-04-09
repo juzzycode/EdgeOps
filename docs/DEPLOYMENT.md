@@ -17,6 +17,14 @@ chmod +x ./start.sh
 ```
 
 The script keeps both processes in the same shell and stops both if either process exits or you press `Ctrl+C`.
+While it runs, it writes PID and runtime metadata into `.run/edgeops/` so `./stop.sh` can stop the correct processes later.
+
+To stop a running instance from another shell:
+
+```bash
+chmod +x ./stop.sh
+./stop.sh
+```
 
 ## Environment Variables
 
