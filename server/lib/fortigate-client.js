@@ -9,6 +9,7 @@ const switchStatusCacheTtlMs = 30_000;
 const managedApStatusCacheTtlMs = 30_000;
 const wirelessClientsCacheTtlMs = 30_000;
 const fortiGateRequestTimeoutMs = 5_000;
+const fortiGateRateLimitRetryCount = 2;
 const switchStatsCache = new Map();
 const switchStatusCache = new Map();
 const managedApStatusCache = new Map();
@@ -41,9 +42,21 @@ const fortiGateBaseUrl = (value) => {
 
 const resolveSiteVdom = (site) => String(site?.fortigate_vdom || '').trim() || 'root';
 
+const parseRetryAfterMs = (value) => {
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.max(250, Math.round(seconds * 1000));
+  }
+
+  return 1_000;
+};
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const requestFortiGate = (url, apiKey, options = {}) =>
   new Promise((resolve, reject) => {
     let settled = false;
+    const attempt = Number(options.attempt ?? 0);
     const method = options.method || 'GET';
     const body = options.body;
     const serializedBody =
@@ -68,13 +81,25 @@ const requestFortiGate = (url, apiKey, options = {}) =>
         });
         response.on('end', () => {
           if (settled) return;
-          settled = true;
           if ((response.statusCode ?? 500) >= 400) {
+            if ((response.statusCode ?? 500) === 429 && attempt < fortiGateRateLimitRetryCount) {
+              settled = true;
+              void wait(parseRetryAfterMs(response.headers['retry-after'])).then(() =>
+                requestFortiGate(url, apiKey, {
+                  ...options,
+                  attempt: attempt + 1,
+                }).then(resolve, reject),
+              );
+              return;
+            }
+
+            settled = true;
             reject(new Error(`FortiGate request failed with HTTP ${response.statusCode}`));
             return;
           }
 
           try {
+            settled = true;
             const contentType = String(response.headers['content-type'] || '').toLowerCase();
             if (!body) {
               resolve({});
@@ -200,6 +225,16 @@ const inferApModel = (item) => {
   }
 
   return profile || 'FortiAP';
+};
+
+const inferFortiGateModel = (statusPayload, site) =>
+  extractFromStatusPayload(statusPayload, ['model', 'model_name', 'model-name', 'platform', 'product']) ||
+  String(site?.fortigate_name || '').trim() ||
+  'FortiGate';
+
+const isFortiWifiModel = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized.includes('fortiwifi') || normalized.startsWith('fwf');
 };
 
 const extractWanIpFromInterfaces = (payload) => {
@@ -419,6 +454,108 @@ const mapSsidsFromClients = (item, clients) =>
       .filter(Boolean),
     (ssid) => ssid.id,
   );
+
+const synthesizeIntegratedAccessPoint = ({
+  site,
+  statusPayload,
+  clients,
+  runtimeStatus = null,
+  neighborNames = [],
+}) => {
+  const fortiGateModel = inferFortiGateModel(statusPayload, site);
+  const statusSerial =
+    extractFromStatusPayload(statusPayload, ['serial', 'serial_number', 'serial-no', 'sn']) ||
+    extractStatusField(runtimeStatus, ['wtp_id', 'serial']) ||
+    site.id;
+  const serial = `integrated-${statusSerial}`;
+  const radios = mapObservedRadiosFromClients(clients);
+  const ssids = mapSsidsFromClients({ 'wtp-id': serial }, clients);
+  const managementIp =
+    extractStatusField(runtimeStatus, ['local_ipv4_addr', 'connecting_from']) ||
+    clients[0]?.wtp_ip ||
+    clients[0]?.wtp_control_ip ||
+    parseFortiGateTarget(site.fortigate_ip).host ||
+    '';
+  const firmware =
+    extractStatusField(runtimeStatus, ['os_version', 'version']) ||
+    extractFromStatusPayload(statusPayload, ['version', 'firmware-version']) ||
+    'Integrated with FortiGate';
+
+  return {
+    id: buildApId(site.id, serial),
+    name: `${extractFromStatusPayload(statusPayload, ['hostname', 'name']) || site.fortigate_name || site.name} Integrated AP`,
+    model: isFortiWifiModel(fortiGateModel) ? fortiGateModel : 'FortiWiFi Integrated AP',
+    serial,
+    siteId: site.id,
+    status: clients.length ? 'healthy' : runtimeStatus ? 'healthy' : 'warning',
+    firmware,
+    targetFirmware: 'Managed by FortiGate platform firmware',
+    clients: clients.length,
+    radios,
+    ip: managementIp,
+    lastSeen: new Date().toISOString(),
+    profileId: 'integrated-wireless',
+    ssids,
+    configSummary: [
+      `Parent device: ${extractFromStatusPayload(statusPayload, ['hostname', 'name']) || site.fortigate_name || site.name}`,
+      `Model: ${fortiGateModel}`,
+      'This AP is synthesized from FortiWiFi-integrated wireless capability rather than a separate FortiAP controller record.',
+      'Client counts and SSIDs are inferred from live wireless client telemetry when available.',
+    ],
+    neighborAps: neighborNames.slice(0, 4),
+    clientDevices: clients.map(mapApClient),
+  };
+};
+
+const appendIntegratedAccessPointIfNeeded = ({
+  site,
+  statusPayload = null,
+  accessPoints,
+  clients,
+  managedApStatuses,
+}) => {
+  const knownSerials = new Set(
+    accessPoints
+      .map((item) => extractStatusField(item, ['wtp-id', 'serial']))
+      .filter(Boolean),
+  );
+  const statusModel = inferFortiGateModel(statusPayload, site);
+  const runtimeCandidates = managedApStatuses
+    .map((entry) => ({
+      key: extractStatusField(entry, ['wtp_id', 'serial']),
+      runtimeStatus: entry,
+    }))
+    .filter((entry) => entry.key && !knownSerials.has(entry.key));
+  const clientCandidates = [...new Set(clients.map((entry) => extractStatusField(entry, ['wtp_id'])).filter(Boolean))]
+    .filter((key) => !knownSerials.has(key))
+    .map((key) => ({
+      key,
+      runtimeStatus:
+        managedApStatuses.find((entry) => extractStatusField(entry, ['wtp_id', 'serial']) === key) ?? null,
+    }));
+  const integratedCandidates = runtimeCandidates.length || clientCandidates.length
+    ? uniqueBy([...runtimeCandidates, ...clientCandidates], (entry) => entry.key)
+    : isFortiWifiModel(statusModel)
+      ? [{ key: `integrated-${site.id}`, runtimeStatus: managedApStatuses[0] ?? null }]
+      : [];
+  const accessPointNames = accessPoints.map((item) => extractStatusField(item, ['name', 'location'])).filter(Boolean);
+
+  return [
+    ...accessPoints,
+    ...integratedCandidates.map((candidate) =>
+      synthesizeIntegratedAccessPoint({
+        site,
+        statusPayload,
+        clients: clients.filter((entry) => {
+          const clientWtpId = extractStatusField(entry, ['wtp_id']);
+          return candidate.key === `integrated-${site.id}` ? !clientWtpId || !knownSerials.has(clientWtpId) : clientWtpId === candidate.key;
+        }),
+        runtimeStatus: candidate.runtimeStatus,
+        neighborNames: accessPointNames,
+      }),
+    ),
+  ];
+};
 
 const shouldUseCachedWirelessClients = (entry) =>
   Boolean(entry) && Date.now() - entry.fetchedAt < wirelessClientsCacheTtlMs;
@@ -1300,8 +1437,10 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       const addressResults = Array.isArray(addressPayload.results) ? addressPayload.results : [];
       const switchCount =
         switchResult.status === 'fulfilled' && Array.isArray(switchResult.value.results) ? switchResult.value.results.length : 0;
-      const apCount =
+      const fortiGateModel = inferFortiGateModel(statusPayload, workingSite);
+      const externalApCount =
         accessPointResult.status === 'fulfilled' && Array.isArray(accessPointResult.value.results) ? accessPointResult.value.results.length : 0;
+      const apCount = externalApCount + (isFortiWifiModel(fortiGateModel) ? 1 : 0);
       const clientCount =
         clientResult.status === 'fulfilled' && Array.isArray(clientResult.value.results)
           ? clientResult.value.results.filter((item) => !isInfrastructureDevice(item)).length
@@ -1713,23 +1852,27 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       return [];
     }
 
-    const [wtpPayload, clientsPayload, managedApStatusPayload] = await Promise.all([
+    const [wtpResult, clientsResult, managedApStatusResult, statusResult] = await Promise.allSettled([
       requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
-      getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
-      getCachedManagedApStatus(site, site.fortigate_api_key).catch(() => ({ results: [] })),
+      getCachedWirelessClients(site, site.fortigate_api_key),
+      getCachedManagedApStatus(site, site.fortigate_api_key),
+      requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/status`, site.fortigate_api_key),
     ]);
 
-    const accessPoints = Array.isArray(wtpPayload.results) ? wtpPayload.results : [];
-    const clients = Array.isArray(clientsPayload.results) ? clientsPayload.results : [];
-    const managedApStatuses = Array.isArray(managedApStatusPayload.results) ? managedApStatusPayload.results : [];
+    const accessPoints = wtpResult.status === 'fulfilled' && Array.isArray(wtpResult.value.results) ? wtpResult.value.results : [];
+    const clients = clientsResult.status === 'fulfilled' && Array.isArray(clientsResult.value.results) ? clientsResult.value.results : [];
+    const managedApStatuses =
+      managedApStatusResult.status === 'fulfilled' && Array.isArray(managedApStatusResult.value.results)
+        ? managedApStatusResult.value.results
+        : [];
+    const statusPayload = statusResult.status === 'fulfilled' ? statusResult.value : null;
     const runtimeMap = new Map(
       managedApStatuses.map((entry) => [extractStatusField(entry, ['wtp_id', 'serial']) || '', entry]),
     );
     const apNames = accessPoints
       .map((item) => extractStatusField(item, ['name', 'location']))
       .filter(Boolean);
-
-    return accessPoints.map((item) =>
+    const mappedAccessPoints = accessPoints.map((item) =>
       mapManagedAccessPoint(
         site,
         item,
@@ -1737,6 +1880,24 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
         apNames,
         runtimeMap.get(extractStatusField(item, ['wtp-id', 'serial']) || '') ?? null,
       ),
+    );
+
+    return appendIntegratedAccessPointIfNeeded({
+      site,
+      statusPayload,
+      accessPoints,
+      clients,
+      managedApStatuses,
+    }).map((item) =>
+      'siteId' in item
+        ? item
+        : mapManagedAccessPoint(
+            site,
+            item,
+            clients.filter((client) => client.wtp_id === item['wtp-id']),
+            apNames,
+            runtimeMap.get(extractStatusField(item, ['wtp-id', 'serial']) || '') ?? null,
+          ),
     );
   },
 
@@ -1769,36 +1930,48 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       return null;
     }
 
-    const [wtpPayload, clientsPayload, managedApStatusPayload] = await Promise.all([
+    const [wtpResult, clientsResult, managedApStatusResult, statusResult] = await Promise.allSettled([
       requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/cmdb/wireless-controller/wtp`, site.fortigate_api_key),
-      getCachedWirelessClients(site, site.fortigate_api_key).catch(() => ({ results: [] })),
-      getCachedManagedApStatus(site, site.fortigate_api_key).catch(() => ({ results: [] })),
+      getCachedWirelessClients(site, site.fortigate_api_key),
+      getCachedManagedApStatus(site, site.fortigate_api_key),
+      requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/status`, site.fortigate_api_key),
     ]);
 
-    const accessPoints = Array.isArray(wtpPayload.results) ? wtpPayload.results : [];
-    const clients = Array.isArray(clientsPayload.results) ? clientsPayload.results : [];
-    const managedApStatuses = Array.isArray(managedApStatusPayload.results) ? managedApStatusPayload.results : [];
-    const item = accessPoints.find(
-      (candidate) =>
-        buildApId(site.id, extractStatusField(candidate, ['wtp-id', 'serial']) || 'unknown-ap') === accessPointId,
-    );
-
-    if (!item) return null;
+    const accessPoints = wtpResult.status === 'fulfilled' && Array.isArray(wtpResult.value.results) ? wtpResult.value.results : [];
+    const clients = clientsResult.status === 'fulfilled' && Array.isArray(clientsResult.value.results) ? clientsResult.value.results : [];
+    const managedApStatuses =
+      managedApStatusResult.status === 'fulfilled' && Array.isArray(managedApStatusResult.value.results)
+        ? managedApStatusResult.value.results
+        : [];
+    const statusPayload = statusResult.status === 'fulfilled' ? statusResult.value : null;
 
     const apNames = accessPoints
       .map((candidate) => extractStatusField(candidate, ['name', 'location']))
       .filter(Boolean);
-    const serial = extractStatusField(item, ['wtp-id', 'serial']) || 'unknown-ap';
-    const runtimeStatus =
-      managedApStatuses.find((entry) => (extractStatusField(entry, ['wtp_id', 'serial']) || '') === serial) ?? null;
-
-    return mapManagedAccessPoint(
-      site,
-      item,
-      clients.filter((client) => client.wtp_id === item['wtp-id']),
-      apNames,
-      runtimeStatus,
+    const runtimeMap = new Map(
+      managedApStatuses.map((entry) => [extractStatusField(entry, ['wtp_id', 'serial']) || '', entry]),
     );
+    const mappedAccessPoints = accessPoints.map((item) =>
+      mapManagedAccessPoint(
+        site,
+        item,
+        clients.filter((client) => client.wtp_id === item['wtp-id']),
+        apNames,
+        runtimeMap.get(extractStatusField(item, ['wtp-id', 'serial']) || '') ?? null,
+      ),
+    );
+    const combinedAccessPoints = [
+      ...mappedAccessPoints,
+      ...appendIntegratedAccessPointIfNeeded({
+        site,
+        statusPayload,
+        accessPoints,
+        clients,
+        managedApStatuses,
+      }).filter((item) => 'siteId' in item),
+    ];
+
+    return combinedAccessPoints.find((candidate) => candidate.id === accessPointId) ?? null;
   },
 
   async listClientsForSite(site) {
