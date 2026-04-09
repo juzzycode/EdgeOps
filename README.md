@@ -38,6 +38,12 @@ To run the backend plus the Vite frontend together through the launcher:
 ./start.sh dev
 ```
 
+Add `--detach` if you want the launcher to start the processes and return immediately:
+
+```bash
+./start.sh dev -d
+```
+
 ### Frontend Plus Gateway API
 
 If you also want the local backend running, start it in a second terminal:
@@ -98,6 +104,8 @@ It also writes runtime state under `.run/edgeops/` so you can stop it from anoth
 chmod +x ./stop.sh
 ./stop.sh
 ```
+
+Use `./start.sh -d` if you want the stack started in the background instead of supervised in the foreground.
 
 ## Implemented Pages
 

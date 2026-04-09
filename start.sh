@@ -9,7 +9,27 @@ BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
 LAUNCHER_PID_FILE="$RUN_DIR/launcher.pid"
 RUNTIME_ENV_FILE="$RUN_DIR/runtime.env"
-START_MODE="${1:-production}"
+START_MODE="production"
+DETACH_MODE=0
+
+for arg in "$@"; do
+  case "$arg" in
+    dev)
+      START_MODE="dev"
+      ;;
+    production)
+      START_MODE="production"
+      ;;
+    -d|--detach|daemon)
+      DETACH_MODE=1
+      ;;
+    *)
+      echo "[start] Unknown argument: $arg" >&2
+      echo "[start] Usage: ./start.sh [dev] [-d]" >&2
+      exit 1
+      ;;
+  esac
+done
 
 if [[ -f .env ]]; then
   set -a
@@ -110,6 +130,7 @@ write_runtime_files() {
   printf '%s\n' "$$" >"$LAUNCHER_PID_FILE"
   cat >"$RUNTIME_ENV_FILE" <<EOF
 EDGEOPS_START_MODE=$START_MODE
+EDGEOPS_DETACH_MODE=$DETACH_MODE
 EDGEOPS_PORT=$API_PORT
 EDGEOPS_FRONTEND_PORT=$RUNTIME_FRONTEND_PORT
 EDGEOPS_FRONTEND_HOST=$RUNTIME_FRONTEND_HOST
@@ -145,12 +166,6 @@ cleanup() {
 trap 'cleanup $?' EXIT
 trap 'cleanup 130' INT TERM
 
-if [[ "$START_MODE" != "production" && "$START_MODE" != "dev" ]]; then
-  echo "[start] Unknown mode: $START_MODE" >&2
-  echo "[start] Usage: ./start.sh [dev]" >&2
-  exit 1
-fi
-
 ensure_not_running
 
 if [[ "$START_MODE" == "production" ]]; then
@@ -184,6 +199,15 @@ else
 fi
 
 write_runtime_files
+
+if [[ "$DETACH_MODE" == "1" ]]; then
+  echo "[start] EdgeOps started in detached mode"
+  echo "[start] API pid: $backend_pid"
+  echo "[start] Frontend pid: $frontend_pid"
+  echo "[start] Use ./stop.sh to stop the stack"
+  trap - EXIT INT TERM
+  exit 0
+fi
 
 wait -n "$backend_pid" "$frontend_pid"
 cleanup $?

@@ -52,6 +52,12 @@ Or use the combined launcher in dev mode to run both backend and Vite together:
 
 That uses `EDGEOPS_DEV_FRONTEND_HOST` and `EDGEOPS_DEV_FRONTEND_PORT` from `.env` when present.
 
+If you want it to return your shell immediately instead of supervising in the foreground:
+
+```bash
+./start.sh dev -d
+```
+
 ## Start The Gateway Cache API
 
 Only run this if you want the local backend running too:
@@ -180,6 +186,12 @@ To stop a running production instance from another shell:
 ```bash
 chmod +x ./stop.sh
 ./stop.sh
+```
+
+If you want the production launcher to return immediately:
+
+```bash
+./start.sh -d
 ```
 
 For nginx and Apache examples, see `docs/DEPLOYMENT.md` plus the stub files in `docs/deploy/`.

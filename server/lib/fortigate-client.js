@@ -237,6 +237,17 @@ const isFortiWifiModel = (value) => {
   return normalized.includes('fortiwifi') || normalized.startsWith('fwf');
 };
 
+const isIntegratedFortiWifiWtp = (item, statusPayload, site) => {
+  const fortiGateModel = inferFortiGateModel(statusPayload, site);
+  if (!isFortiWifiModel(fortiGateModel)) {
+    return false;
+  }
+
+  const wtpId = extractStatusField(item, ['wtp-id', 'serial']) || '';
+  const normalizedWtpId = wtpId.trim().toLowerCase();
+  return normalizedWtpId.startsWith('fwf') && normalizedWtpId.includes('-wifi');
+};
+
 const extractWanIpFromInterfaces = (payload) => {
   const interfaces = Array.isArray(payload?.results) ? payload.results : [];
   const candidate =
@@ -556,6 +567,9 @@ const appendIntegratedAccessPointIfNeeded = ({
     ),
   ];
 };
+
+const filterStandaloneAccessPoints = ({ site, statusPayload = null, accessPoints }) =>
+  accessPoints.filter((item) => !isIntegratedFortiWifiWtp(item, statusPayload, site));
 
 const shouldUseCachedWirelessClients = (entry) =>
   Boolean(entry) && Date.now() - entry.fetchedAt < wirelessClientsCacheTtlMs;
@@ -1438,8 +1452,13 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       const switchCount =
         switchResult.status === 'fulfilled' && Array.isArray(switchResult.value.results) ? switchResult.value.results.length : 0;
       const fortiGateModel = inferFortiGateModel(statusPayload, workingSite);
-      const externalApCount =
-        accessPointResult.status === 'fulfilled' && Array.isArray(accessPointResult.value.results) ? accessPointResult.value.results.length : 0;
+      const rawAccessPoints =
+        accessPointResult.status === 'fulfilled' && Array.isArray(accessPointResult.value.results) ? accessPointResult.value.results : [];
+      const externalApCount = filterStandaloneAccessPoints({
+        site: workingSite,
+        statusPayload,
+        accessPoints: rawAccessPoints,
+      }).length;
       const apCount = externalApCount + (isFortiWifiModel(fortiGateModel) ? 1 : 0);
       const clientCount =
         clientResult.status === 'fulfilled' && Array.isArray(clientResult.value.results)
@@ -1859,13 +1878,18 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/status`, site.fortigate_api_key),
     ]);
 
-    const accessPoints = wtpResult.status === 'fulfilled' && Array.isArray(wtpResult.value.results) ? wtpResult.value.results : [];
+    const rawAccessPoints = wtpResult.status === 'fulfilled' && Array.isArray(wtpResult.value.results) ? wtpResult.value.results : [];
     const clients = clientsResult.status === 'fulfilled' && Array.isArray(clientsResult.value.results) ? clientsResult.value.results : [];
     const managedApStatuses =
       managedApStatusResult.status === 'fulfilled' && Array.isArray(managedApStatusResult.value.results)
         ? managedApStatusResult.value.results
         : [];
     const statusPayload = statusResult.status === 'fulfilled' ? statusResult.value : null;
+    const accessPoints = filterStandaloneAccessPoints({
+      site,
+      statusPayload,
+      accessPoints: rawAccessPoints,
+    });
     const runtimeMap = new Map(
       managedApStatuses.map((entry) => [extractStatusField(entry, ['wtp_id', 'serial']) || '', entry]),
     );
@@ -1937,13 +1961,18 @@ export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
       requestJson(`${fortiGateBaseUrl(site.fortigate_ip)}/api/v2/monitor/system/status`, site.fortigate_api_key),
     ]);
 
-    const accessPoints = wtpResult.status === 'fulfilled' && Array.isArray(wtpResult.value.results) ? wtpResult.value.results : [];
+    const rawAccessPoints = wtpResult.status === 'fulfilled' && Array.isArray(wtpResult.value.results) ? wtpResult.value.results : [];
     const clients = clientsResult.status === 'fulfilled' && Array.isArray(clientsResult.value.results) ? clientsResult.value.results : [];
     const managedApStatuses =
       managedApStatusResult.status === 'fulfilled' && Array.isArray(managedApStatusResult.value.results)
         ? managedApStatusResult.value.results
         : [];
     const statusPayload = statusResult.status === 'fulfilled' ? statusResult.value : null;
+    const accessPoints = filterStandaloneAccessPoints({
+      site,
+      statusPayload,
+      accessPoints: rawAccessPoints,
+    });
 
     const apNames = accessPoints
       .map((candidate) => extractStatusField(candidate, ['name', 'location']))
