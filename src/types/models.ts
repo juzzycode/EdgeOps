@@ -428,6 +428,24 @@ export interface BandwidthPoint {
   outbound: number;
 }
 
+export interface SitePingSample {
+  observedAt: string;
+  latencyAvgMs: number | null;
+  latencyPacketLoss: number | null;
+  isDown: boolean;
+}
+
+export interface SitePingSeries {
+  siteId: string;
+  siteName: string;
+  status: DeviceStatus;
+  wanStatus: 'online' | 'degraded' | 'offline';
+  lastReplyAt: string | null;
+  downSampleCount: number;
+  packetLossAverage: number | null;
+  points: SitePingSample[];
+}
+
 export interface SiteHistoryPoint {
   siteId: string;
   observedAt: string;

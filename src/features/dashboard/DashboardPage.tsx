@@ -5,15 +5,18 @@ import { Panel } from '@/components/common/Panel';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatCard } from '@/components/common/StatCard';
 import { LoadingState } from '@/components/common/States';
-import { UsageAreaChart } from '@/components/charts/UsageAreaChart';
 import { HealthDonut } from '@/components/charts/HealthDonut';
+import { SitePingHistoryChart } from '@/components/charts/SitePingHistoryChart';
 import { TopologyCanvas } from '@/components/data-display/TopologyCanvas';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import { cn } from '@/lib/utils';
-import { formatNumber, formatRelativeTime, formatWatts } from '@/lib/utils';
-import type { DeviceStatus, TopologyGraph } from '@/types/models';
+import { formatNumber, formatPercent, formatRelativeTime, formatWatts } from '@/lib/utils';
+import type { DeviceStatus, SitePingSeries, TopologyGraph } from '@/types/models';
+
+const siteReachabilityStatus = (site: SitePingSeries): DeviceStatus =>
+  site.wanStatus === 'offline' ? 'offline' : site.wanStatus === 'degraded' || site.downSampleCount > 0 ? 'warning' : 'healthy';
 
 export const DashboardPage = () => {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.getDashboard>> | null>(null);
@@ -97,8 +100,51 @@ export const DashboardPage = () => {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <Panel title="Observed Throughput" subtitle="Current inbound and outbound Mbps derived from live AP client telemetry in the selected site scope.">
-          <UsageAreaChart data={data.bandwidthUsage} />
+        <Panel title="Site Ping Responses" subtitle="Last 24 hours of site latency, rolled up into 30-minute averages. Down samples show as gaps, with reachability summarized below.">
+          <SitePingHistoryChart series={data.sitePingSeries} />
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {data.sitePingSeries.map((site) => {
+              const reachabilityStatus = siteReachabilityStatus(site);
+              return (
+                <div key={site.siteId} className="rounded-2xl border border-border bg-soft p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{site.siteName}</p>
+                      <p className="text-xs text-muted">
+                        {site.downSampleCount
+                          ? `${site.downSampleCount} down samples in the last 24 hours`
+                          : 'No down samples in the last 24 hours'}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      value={reachabilityStatus}
+                      title={
+                        reachabilityStatus === 'offline'
+                          ? 'Site is currently down or not replying to ping/API checks.'
+                          : reachabilityStatus === 'warning'
+                            ? 'Site had degraded latency, packet loss, or down samples in the last 24 hours.'
+                            : undefined
+                      }
+                    />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted">Current</p>
+                      <p className="mt-1 font-medium text-text capitalize">{site.wanStatus}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted">Last Reply</p>
+                      <p className="mt-1 font-medium text-text">{site.lastReplyAt ? formatRelativeTime(site.lastReplyAt) : 'No reply'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted">Avg Loss</p>
+                      <p className="mt-1 font-medium text-text">{site.packetLossAverage === null ? 'N/A' : formatPercent(site.packetLossAverage)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </Panel>
 
         <Panel title="Device Health Summary" subtitle="Combined switch and AP health status.">

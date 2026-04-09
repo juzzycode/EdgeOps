@@ -1,4 +1,4 @@
-import type { AccessPoint, Alert, AuthSession, BandwidthPoint, Client, DeviceActionRecord, DeviceProfile, EventLog, FirmwareStatus, FortiGateDevice, HostScanResult, ManagedUser, PortProfile, RogueAccessPoint, Site, SiteConfigDiff, SiteConfigSnapshot, SiteHistoryPoint, SwitchDevice, SwitchVlanOption, TopologyGraph, VLANProfile } from '@/types/models';
+import type { AccessPoint, Alert, AuthSession, Client, DeviceActionRecord, DeviceProfile, EventLog, FirmwareStatus, FortiGateDevice, HostScanResult, ManagedUser, PortProfile, RogueAccessPoint, Site, SiteConfigDiff, SiteConfigSnapshot, SiteHistoryPoint, SitePingSeries, SwitchDevice, SwitchVlanOption, TopologyGraph, VLANProfile } from '@/types/models';
 
 const delay = async <T,>(data: T, timeout = 280) => new Promise<T>((resolve) => setTimeout(() => resolve(data), timeout));
 const authRequiredEventName = 'edgeops:auth-required';
@@ -36,23 +36,48 @@ class ApiError extends Error {
   }
 }
 
-const deriveBandwidthUsage = (accessPointInventory: AccessPoint[]): BandwidthPoint[] => {
-  const points = accessPointInventory
-    .map((accessPoint) => {
-      const clients = accessPoint.clientDevices ?? [];
-      const inbound = clients.reduce((sum, client) => sum + (client.rxRateMbps ?? 0), 0);
-      const outbound = clients.reduce((sum, client) => sum + (client.txRateMbps ?? 0), 0);
-      return {
-        interval: accessPoint.name,
-        inbound,
-        outbound,
-      };
-    })
-    .filter((point) => point.inbound > 0 || point.outbound > 0)
-    .sort((left, right) => right.inbound + right.outbound - (left.inbound + left.outbound))
-    .slice(0, 6);
+const buildThirtyMinuteBuckets = (metrics: SiteHistoryPoint[]) => {
+  const buckets = new Map<string, SiteHistoryPoint[]>();
+  const now = Date.now();
+  const cutoff = now - 24 * 60 * 60 * 1000;
 
-  return points.length ? points : [];
+  for (const metric of metrics) {
+    const timestamp = new Date(metric.observedAt).getTime();
+    if (!Number.isFinite(timestamp) || timestamp < cutoff) continue;
+
+    const bucketDate = new Date(timestamp);
+    bucketDate.setMinutes(bucketDate.getMinutes() < 30 ? 0 : 30, 0, 0);
+    const bucketKey = bucketDate.toISOString();
+    const existing = buckets.get(bucketKey) ?? [];
+    existing.push(metric);
+    buckets.set(bucketKey, existing);
+  }
+
+  const rows = [];
+  const firstBucket = new Date(cutoff);
+  firstBucket.setMinutes(firstBucket.getMinutes() < 30 ? 0 : 30, 0, 0);
+
+  for (let bucketTime = firstBucket.getTime(); bucketTime <= now; bucketTime += 30 * 60 * 1000) {
+    const observedAt = new Date(bucketTime).toISOString();
+    const bucketMetrics = buckets.get(observedAt) ?? [];
+    const latencyValues = bucketMetrics
+      .map((metric) => metric.latencyAvgMs)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    const packetLossValues = bucketMetrics
+      .map((metric) => metric.latencyPacketLoss)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+    rows.push({
+      observedAt,
+      latencyAvgMs: latencyValues.length ? latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length : null,
+      latencyPacketLoss: packetLossValues.length ? packetLossValues.reduce((sum, value) => sum + value, 0) / packetLossValues.length : null,
+      isDown: bucketMetrics.some(
+        (metric) => metric.wanStatus === 'offline' || !metric.apiReachable || metric.status === 'offline' || metric.latencyPacketLoss === 100,
+      ),
+    });
+  }
+
+  return rows;
 };
 
 const jsonRequest = async <T,>(input: string, init?: RequestInit) => {
@@ -115,15 +140,43 @@ export const api = {
     const siteQuery = siteId && siteId !== 'all' ? `?siteId=${encodeURIComponent(siteId)}` : '';
     const sites = await jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites);
     const filteredSites = siteId && siteId !== 'all' ? sites.filter((site) => site.id === siteId) : sites;
-    const [switches, liveAccessPoints, liveClients, liveAlerts, liveFirmwareStatuses] = await Promise.all([
+    const [switches, liveAccessPoints, liveClients, liveAlerts, liveFirmwareStatuses, siteHistoryResults] = await Promise.all([
       jsonRequest<{ switches: SwitchDevice[] }>(`/api/switches${siteQuery}`).then((payload) => payload.switches),
       jsonRequest<{ accessPoints: AccessPoint[] }>(`/api/aps${siteQuery}`).then((payload) => payload.accessPoints),
       jsonRequest<{ clients: Client[] }>(`/api/clients${siteQuery}`).then((payload) => payload.clients),
       jsonRequest<{ alerts: Alert[] }>(`/api/alerts${siteQuery}`).then((payload) => payload.alerts),
       jsonRequest<{ firmware: FirmwareStatus[] }>(`/api/firmware${siteQuery}`).then((payload) => payload.firmware),
+      Promise.all(
+        filteredSites.map(async (site) => ({
+          site,
+          history: await jsonRequest<{ metrics: SiteHistoryPoint[]; alerts: Alert[] }>(`/api/sites/${encodeURIComponent(site.id)}/history?limit=96`).catch(() => ({
+            metrics: [],
+            alerts: [],
+          })),
+        })),
+      ),
     ]);
-    const liveBandwidthUsage = deriveBandwidthUsage(liveAccessPoints);
-    return delay({ sites: filteredSites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts: liveAlerts, firmwareStatuses: liveFirmwareStatuses, bandwidthUsage: liveBandwidthUsage });
+    const sitePingSeries: SitePingSeries[] = siteHistoryResults.map(({ site, history }) => {
+      const points = buildThirtyMinuteBuckets(history.metrics);
+      const packetLossValues = points
+        .map((point) => point.latencyPacketLoss)
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+      const lastReplyAt = [...points]
+        .reverse()
+        .find((point) => typeof point.latencyAvgMs === 'number' && !point.isDown)?.observedAt ?? null;
+
+      return {
+        siteId: site.id,
+        siteName: site.name,
+        status: site.status,
+        wanStatus: site.wanStatus,
+        lastReplyAt,
+        downSampleCount: points.filter((point) => point.isDown).length,
+        packetLossAverage: packetLossValues.length ? packetLossValues.reduce((sum, value) => sum + value, 0) / packetLossValues.length : null,
+        points,
+      };
+    });
+    return delay({ sites: filteredSites, switches, accessPoints: liveAccessPoints, clients: liveClients, alerts: liveAlerts, firmwareStatuses: liveFirmwareStatuses, sitePingSeries });
   },
   getSites: async () => jsonRequest<{ sites: Site[] }>('/api/sites').then((payload) => payload.sites),
   getSiteById: async (id: string) => jsonRequest<{ site: Site }>(`/api/sites/${id}`).then((payload) => payload.site),

@@ -11,6 +11,27 @@ import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import type { Client, Site } from '@/types/models';
 
+const getClientStatusPresentation = (client: Client) => {
+  if (client.status === 'blocked') {
+    return {
+      badge: 'critical' as const,
+      label: 'Client is blocked or quarantined by the upstream policy.',
+    };
+  }
+
+  if (client.status === 'idle') {
+    return {
+      badge: 'warning' as const,
+      label: `Client is idle and has not been seen recently by the FortiGate${client.connectedAt ? ` since ${formatRelativeTime(client.connectedAt)}` : ''}.`,
+    };
+  }
+
+  return {
+    badge: 'healthy' as const,
+    label: 'Client is active in the latest FortiGate inventory.',
+  };
+};
+
 export const ClientsPage = () => {
   const [clients, setClients] = useState<Client[] | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
@@ -76,7 +97,14 @@ export const ClientsPage = () => {
     },
     { key: 'site', header: 'Site', render: (item) => sites.find((site) => site.id === item.siteId)?.name ?? item.siteId },
     { key: 'usage', header: 'Usage', render: () => 'N/A' },
-    { key: 'status', header: 'Status', render: (item) => <StatusBadge value={item.status === 'idle' ? 'warning' : item.status === 'blocked' ? 'critical' : 'healthy'} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (item) => {
+        const status = getClientStatusPresentation(item);
+        return <StatusBadge value={status.badge} title={status.badge === 'warning' ? status.label : undefined} />;
+      },
+    },
   ];
 
   return (
