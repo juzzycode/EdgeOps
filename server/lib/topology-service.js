@@ -34,25 +34,34 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
     const sites = siteId ? [await siteStore.getSiteById(siteId)].filter(Boolean) : await siteStore.listSites();
     const isMultiSite = sites.length > 1;
     const columnWidth = 300;
-    const rowHeight = 140;
-    const rowBlockHeight = 320;
-    const siteResults = await Promise.all(
-      sites.map(async (site, siteIndex) => {
+    const rowHeight = 170;
+    const minSiteBlockHeight = 320;
+    const siteSnapshots = await Promise.all(
+      sites.map(async (site) => {
         const [summary, switches, aps] = await Promise.all([
           fortiGateClient.summarizeSite(site).catch(() => null),
           fortiGateClient.listManagedSwitchesForSite(site).catch(() => []),
           fortiGateClient.listManagedAccessPointsForSite(site).catch(() => []),
         ]);
 
-        const baseY = 60 + siteIndex * rowBlockHeight;
-        const siteX = isMultiSite ? 320 : 320;
-        const switchX = siteX + columnWidth;
-        const apX = switchX + columnWidth;
-        const clientX = apX + columnWidth;
+        return { site, summary, switches, aps };
+      }),
+    );
 
-        const nodes = [];
-        const edges = [];
-        const summaryNode = buildNode({
+    const siteResults = [];
+    let nextBaseY = 60;
+
+    for (const snapshot of siteSnapshots) {
+      const { site, summary, switches, aps } = snapshot;
+      const baseY = nextBaseY;
+      const siteX = isMultiSite ? 320 : 320;
+      const switchX = siteX + columnWidth;
+      const apX = switchX + columnWidth;
+      const clientX = apX + columnWidth;
+
+      const nodes = [];
+      const edges = [];
+      const summaryNode = buildNode({
           id: site.id,
           type: 'site',
           label: site.name,
@@ -115,7 +124,14 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
             id: `${site.id}-${device.id}`,
             from: summaryNode.id,
             to: device.id,
-            status: device.uplinkStatus === 'down' ? 'critical' : device.uplinkStatus === 'degraded' ? 'warning' : 'healthy',
+            status:
+              device.status === 'offline'
+                ? 'offline'
+                : device.uplinkStatus === 'down'
+                  ? 'critical'
+                  : device.uplinkStatus === 'degraded'
+                    ? 'warning'
+                    : 'healthy',
             label: device.uplinkStatus === 'up' ? 'FortiLink' : `Uplink ${device.uplinkStatus}`,
           });
           return node;
@@ -123,8 +139,14 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
 
         nodes.push(...switchNodes);
 
+        const availableSwitchNodes = switchNodes.filter((node) => {
+          const switchDevice = switches.find((device) => device.id === node.id);
+          return node.status !== 'offline' && switchDevice?.uplinkStatus !== 'down';
+        });
+
         const apNodes = aps.map((device, index) => {
-          const fallbackSwitch = switchNodes[index % Math.max(switchNodes.length, 1)];
+          const fallbackSwitch = availableSwitchNodes[index % Math.max(availableSwitchNodes.length, 1)];
+          const parentNode = fallbackSwitch ?? summaryNode;
           const node = buildNode({
             id: device.id,
             type: 'ap',
@@ -142,17 +164,18 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
           });
 
           edges.push({
-            id: `${fallbackSwitch?.id || summaryNode.id}-${device.id}`,
-            from: fallbackSwitch?.id || summaryNode.id,
+            id: `${parentNode.id}-${device.id}`,
+            from: parentNode.id,
             to: device.id,
-            status: device.status,
-            label: device.clients ? `${device.clients} clients` : 'Wireless edge',
+            status: parentNode.status === 'offline' ? 'offline' : device.status,
+            label: fallbackSwitch ? (device.clients ? `${device.clients} clients` : 'Wireless edge') : 'Wireless estate',
           });
           return node;
         });
 
         nodes.push(...apNodes);
 
+        const clientGroupY = baseY + (apNodes.length > 1 ? ((apNodes.length - 1) * rowHeight) / 2 : 0);
         const clientAggregateNode = buildNode({
           id: `${site.id}--clients`,
           type: 'client-group',
@@ -160,7 +183,7 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
           status: summary?.clientCount ? 'healthy' : 'warning',
           siteId: site.id,
           x: clientX,
-          y: baseY,
+          y: clientGroupY,
           meta: {
             clients: summary?.clientCount ?? 0,
             ssids: aps.reduce((sum, ap) => sum + ap.ssids.length, 0),
@@ -189,13 +212,15 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
           });
         }
 
-        return {
-          site: summary,
-          nodes,
-          edges,
-        };
-      }),
-    );
+      siteResults.push({
+        site: summary,
+        nodes,
+        edges,
+      });
+
+      const tallestColumnCount = Math.max(1, switches.length, aps.length);
+      nextBaseY += Math.max(minSiteBlockHeight, (tallestColumnCount - 1) * rowHeight + 230);
+    }
 
     const nodes = siteResults.flatMap((entry) => entry.nodes);
     const edges = siteResults.flatMap((entry) => entry.edges);
@@ -214,7 +239,7 @@ export const createTopologyService = ({ siteStore, fortiGateClient }) => ({
         status: reachable ? 'healthy' : 'warning',
         siteId: 'global',
         x: 40,
-        y: 60 + ((siteResults.length - 1) * rowBlockHeight) / 2,
+        y: 60 + Math.max(0, nextBaseY - 60 - minSiteBlockHeight) / 2,
         meta: {
           sites: siteResults.length,
           latency: Number.isFinite(averageLatency) ? averageLatency : null,

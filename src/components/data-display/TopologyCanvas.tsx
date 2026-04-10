@@ -6,8 +6,8 @@ import type { TopologyGraph, TopologyNode } from '@/types/models';
 const nodeSizes = {
   wan: { width: 220, height: 104 },
   site: { width: 220, height: 104 },
-  switch: { width: 220, height: 104 },
-  ap: { width: 220, height: 104 },
+  switch: { width: 220, height: 120 },
+  ap: { width: 220, height: 148 },
   'client-group': { width: 220, height: 104 },
 } as const;
 
@@ -49,6 +49,7 @@ export const TopologyCanvas = ({
               const x2 = to.x;
               const y2 = to.y + toSize.height / 2;
               const midX = (x1 + x2) / 2;
+              const isOffline = edge.status === 'offline';
               const stroke =
                 edge.status === 'critical'
                   ? '#ef4444'
@@ -60,8 +61,15 @@ export const TopologyCanvas = ({
 
               return (
                 <g key={edge.id}>
-                  <path d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`} stroke={stroke} strokeWidth="3" strokeLinecap="round" opacity="0.88" />
-                  <text x={midX} y={(y1 + y2) / 2 - 8} textAnchor="middle" fill="var(--color-muted)" fontSize="11">
+                  <path
+                    d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                    stroke={stroke}
+                    strokeDasharray={isOffline ? '8 10' : undefined}
+                    strokeWidth={isOffline ? '2' : '3'}
+                    strokeLinecap="round"
+                    opacity={isOffline ? '0.45' : '0.88'}
+                  />
+                  <text x={midX} y={(y1 + y2) / 2 - 8} textAnchor="middle" fill="var(--color-muted)" fontSize="11" opacity={isOffline ? '0.7' : '1'}>
                     {edge.label}
                   </text>
                 </g>
@@ -100,7 +108,7 @@ const TopologyNodeCard = ({ node }: { node: TopologyNode }) => {
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-text">{node.label}</p>
+            <p className="break-words text-sm font-semibold leading-5 text-text">{node.label}</p>
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted">{node.type.replace('-', ' ')}</p>
           </div>
         </div>
