@@ -52,7 +52,7 @@ If you also want the local backend running, start it in a second terminal:
 npm run server
 ```
 
-The backend automatically reads `.env` for `EDGEOPS_API_HOST`, `EDGEOPS_API_PORT`, `EDGEOPS_API_PREFIX`, `EDGEOPS_DB_PATH`, and `EDGEOPS_SECRET`.
+The backend automatically reads `.env` for `EDGEOPS_API_HOST`, `EDGEOPS_API_PORT`, `EDGEOPS_API_PREFIX`, `EDGEOPS_DB_CLIENT`, `EDGEOPS_DB_PATH`, MySQL connection variables, and `EDGEOPS_SECRET`.
 It also reads `EDGEOPS_DEFAULT_ADMIN_USERNAME`, `EDGEOPS_DEFAULT_ADMIN_PASSWORD`, and `EDGEOPS_SESSION_TTL_HOURS` for the built-in bootstrap admin and session lifetime.
 Sites are now onboarded from the UI with an Add Site wizard under `/sites`, where you can enter the site metadata plus FortiGate connection details.
 The FortiGate address field accepts either a host/IP like `192.0.2.14` or a host with explicit port like `192.0.2.14:8443`.

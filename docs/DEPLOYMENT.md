@@ -36,6 +36,16 @@ These values can live in `.env` before you run `./start.sh`:
   Backend API port. Default: `8787`
 - `EDGEOPS_API_PREFIX`
   URL prefix for backend API routes. Default: `/api`
+- `EDGEOPS_DB_CLIENT`
+  Storage backend. Use `sqlite` or `mysql`. Default: `sqlite`
+- `EDGEOPS_DB_PATH`
+  SQLite path for gateway cache data when `EDGEOPS_DB_CLIENT=sqlite`. Default: `./data/edgeops-cache.sqlite`
+- `EDGEOPS_MYSQL_URI`
+  Optional MySQL connection string. If set, it takes precedence over the individual MySQL host/user/database values
+- `EDGEOPS_MYSQL_HOST`, `EDGEOPS_MYSQL_PORT`, `EDGEOPS_MYSQL_USER`, `EDGEOPS_MYSQL_PASSWORD`, `EDGEOPS_MYSQL_DATABASE`
+  MySQL connection settings when `EDGEOPS_DB_CLIENT=mysql`
+- `EDGEOPS_MYSQL_SSL`
+  Set to `true` to enable TLS for the MySQL connection
 - `EDGEOPS_FRONTEND_PORT`
   Production frontend port. Default: `8080`
 - `EDGEOPS_FRONTEND_HOST`
@@ -46,6 +56,30 @@ These values can live in `.env` before you run `./start.sh`:
   Set to `1` when you already built `dist/` and do not want `start.sh` to run `npm run build`
 
 `EDGEOPS_PORT` is still accepted as a legacy fallback for `EDGEOPS_API_PORT`, but new installs should use `EDGEOPS_API_PORT`.
+
+## MySQL
+
+SQLite remains the default and is still the simplest single-host option. To use MySQL instead, create an empty database and user, then set:
+
+```env
+EDGEOPS_DB_CLIENT=mysql
+EDGEOPS_MYSQL_HOST=127.0.0.1
+EDGEOPS_MYSQL_PORT=3306
+EDGEOPS_MYSQL_USER=edgeops
+EDGEOPS_MYSQL_PASSWORD=change-me
+EDGEOPS_MYSQL_DATABASE=edgeops
+```
+
+Or use a URI:
+
+```env
+EDGEOPS_DB_CLIENT=mysql
+EDGEOPS_MYSQL_URI=mysql://edgeops:change-me@127.0.0.1:3306/edgeops
+```
+
+On first start, EdgeOps creates its tables in that database. Existing SQLite data is not automatically migrated; export/import it before switching a production instance.
+
+Config snapshots and gateway config cache entries are stored in the database as `LONGTEXT` when MySQL is used. They are not served from `dist/` or the repo-local `data/` directory.
 
 ## nginx
 
@@ -80,6 +114,8 @@ location / {
     proxy_pass http://127.0.0.1:8080;
 }
 ```
+
+The example also denies direct requests for common local data paths. Keep nginx pointed at the frontend and API ports, not at the repository directory.
 
 ## Apache
 

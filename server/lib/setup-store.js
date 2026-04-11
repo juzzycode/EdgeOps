@@ -51,15 +51,89 @@ const createSqlHelpers = async () => {
   return { openDb };
 };
 
-export const createSetupStore = async ({ files, secret }) => {
-  const { openDb } = await createSqlHelpers();
-
+export const createSetupStore = async ({ files, db = null, secret }) => {
   const fieldConfig = {
     username: { filePath: files.username, encrypted: false, label: 'Username' },
     password: { filePath: files.password, encrypted: true, label: 'Password' },
     fortigateIp: { filePath: files.fortigateIp, encrypted: false, label: 'FortiGate IP' },
     fortigateApiKey: { filePath: files.fortigateApiKey, encrypted: true, label: 'FortiGate API Key' },
   };
+
+  if (db) {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS setup_values (
+        setup_key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
+    const getValue = async (key) => {
+      const config = fieldConfig[key];
+      const row = await db.get(`SELECT value, updated_at FROM setup_values WHERE setup_key = ?`, key);
+      if (!row) return null;
+
+      return {
+        value: config.encrypted ? decryptSecret(String(row.value), secret) : String(row.value),
+        updatedAt: String(row.updated_at),
+      };
+    };
+
+    return {
+      files,
+
+      async getStatus() {
+        const checks = await Promise.all(
+          REQUIRED_KEYS.map(async (key) => {
+            const config = fieldConfig[key];
+            const stored = await getValue(key);
+
+            return {
+              key,
+              label: config.label,
+              filePath: `mysql:setup_values:${key}`,
+              fileExists: Boolean(stored),
+              hasValue: Boolean(stored?.value),
+              updatedAt: stored?.updatedAt ?? null,
+            };
+          }),
+        );
+
+        return {
+          complete: checks.every((check) => check.fileExists && check.hasValue),
+          checks,
+        };
+      },
+
+      async saveSetup(input) {
+        const now = new Date().toISOString();
+
+        await Promise.all(
+          REQUIRED_KEYS.map(async (key) => {
+            const config = fieldConfig[key];
+            const value = config.encrypted ? encryptSecret(input[key], secret) : input[key];
+
+            await db.run(
+              `
+                INSERT INTO setup_values (setup_key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                  value = VALUES(value),
+                  updated_at = VALUES(updated_at)
+              `,
+              key,
+              value,
+              now,
+            );
+          }),
+        );
+
+        return this.getStatus();
+      },
+    };
+  }
+
+  const { openDb } = await createSqlHelpers();
 
   const getValue = async (key) => {
     const config = fieldConfig[key];

@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireOperator } from '../lib/auth.js';
 
 export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
   const router = express.Router();
@@ -57,13 +58,16 @@ export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
     });
   });
 
-  router.post('/:gatewayId/sync-config', async (request, response) => {
+  router.post('/:gatewayId/sync-config', requireOperator, async (request, response) => {
     try {
       const cacheRow = await gatewayConfigService.syncGatewayConfig(
         request.params.gatewayId,
         request.body?.apiKeyId,
       );
 
+      response.setHeader('Cache-Control', 'no-store');
+      response.setHeader('Pragma', 'no-cache');
+      response.setHeader('X-Content-Type-Options', 'nosniff');
       response.status(201).json({ cacheEntry: cacheRow });
     } catch (error) {
       response.status(400).json({
@@ -78,13 +82,16 @@ export const createGatewayRouter = ({ repository, gatewayConfigService }) => {
     });
   });
 
-  router.get('/:gatewayId/config-cache/latest', async (request, response) => {
+  router.get('/:gatewayId/config-cache/latest', requireOperator, async (request, response) => {
     const latest = await repository.getLatestCachedConfig(request.params.gatewayId);
     if (!latest) {
       response.status(404).json({ error: 'No cached config found for this gateway' });
       return;
     }
 
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Pragma', 'no-cache');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
     response.json({ cacheEntry: latest });
   });
 

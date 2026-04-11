@@ -162,7 +162,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
     }
   });
 
-  router.get('/:id/config-snapshots/:snapshotId/download', async (request, response) => {
+  router.get('/:id/config-snapshots/:snapshotId/download', requireOperator, async (request, response) => {
     if (!ensureSiteAccess(request, response, request.params.id)) {
       return;
     }
@@ -175,10 +175,13 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
 
     response.setHeader('Content-Type', 'text/plain; charset=utf-8');
     response.setHeader('Content-Disposition', `attachment; filename="${download.filename}"`);
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Pragma', 'no-cache');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
     response.send(download.content);
   });
 
-  router.get('/:id/config-diffs', async (request, response) => {
+  router.get('/:id/config-diffs', requireOperator, async (request, response) => {
     if (!ensureSiteAccess(request, response, request.params.id)) {
       return;
     }

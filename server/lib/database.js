@@ -2,7 +2,58 @@ import fs from 'node:fs';
 import path from 'node:path';
 import initSqlJs from 'sql.js';
 
-export const createDatabase = async (dbPath) => {
+const longTextColumns = [
+  'admin_password',
+  'change_summary_json',
+  'config_blob',
+  'context_json',
+  'description',
+  'encrypted_key',
+  'error_text',
+  'fortigate_api_key',
+  'last_sync_error',
+  'message',
+  'metadata_json',
+  'open_ports_json',
+  'payload_json',
+  'password_hash',
+  'raw_output',
+  'result_json',
+  'summary',
+  'value',
+];
+
+const splitStatements = (sql) =>
+  String(sql)
+    .split(';')
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+
+const normalizeParams = (params) => {
+  if (params.length === 1 && Array.isArray(params[0])) return params[0];
+  return params;
+};
+
+const transformMysqlSql = (sql) => {
+  let transformed = String(sql).trim();
+  if (!transformed || transformed.toUpperCase().startsWith('PRAGMA ')) {
+    return '';
+  }
+
+  transformed = transformed
+    .replace(/\bINSERT OR IGNORE\b/gi, 'INSERT IGNORE')
+    .replace(/\bCREATE INDEX IF NOT EXISTS\b/gi, 'CREATE INDEX')
+    .replace(/\bREAL\b/g, 'DOUBLE')
+    .replace(/\bORDER BY username COLLATE NOCASE\b/g, 'ORDER BY LOWER(username)');
+
+  for (const column of longTextColumns) {
+    transformed = transformed.replace(new RegExp(`\\b${column}\\s+TEXT\\b`, 'g'), `${column} LONGTEXT`);
+  }
+
+  return transformed.replace(/\bTEXT\b/g, 'VARCHAR(191)');
+};
+
+const createSqliteDatabase = async (dbPath) => {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const SQL = await initSqlJs({
@@ -14,11 +65,6 @@ export const createDatabase = async (dbPath) => {
   const persist = () => {
     const data = sqliteDb.export();
     fs.writeFileSync(dbPath, Buffer.from(data));
-  };
-
-  const normalizeParams = (params) => {
-    if (params.length === 1 && Array.isArray(params[0])) return params[0];
-    return params;
   };
 
   const db = {
@@ -104,4 +150,129 @@ export const createDatabase = async (dbPath) => {
   `);
 
   return db;
+};
+
+const createMysqlPool = async (config) => {
+  const mysql = await import('mysql2/promise');
+  if (config.uri) {
+    return mysql.createPool({
+      uri: config.uri,
+      waitForConnections: true,
+      connectionLimit: config.connectionLimit,
+    });
+  }
+
+  return mysql.createPool({
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    ssl: config.ssl ? {} : undefined,
+    waitForConnections: true,
+    connectionLimit: config.connectionLimit,
+  });
+};
+
+const createMysqlDatabase = async (config) => {
+  const pool = await createMysqlPool(config);
+
+  const execute = async (sql, params = []) => {
+    const transformed = transformMysqlSql(sql);
+    if (!transformed) return [[], []];
+
+    try {
+      return await pool.execute(transformed, params);
+    } catch (error) {
+      if (error?.code === 'ER_DUP_KEYNAME' || error?.code === 'ER_TABLE_EXISTS_ERROR') {
+        return [[], []];
+      }
+
+      throw error;
+    }
+  };
+
+  const db = {
+    async exec(sql) {
+      for (const statement of splitStatements(sql)) {
+        await execute(statement);
+      }
+    },
+
+    async run(sql, ...params) {
+      const [result] = await execute(sql, normalizeParams(params));
+      return { changes: Number(result?.affectedRows ?? 0) };
+    },
+
+    async get(sql, ...params) {
+      const rows = await this.all(sql, ...params);
+      return rows[0];
+    },
+
+    async all(sql, ...params) {
+      const pragmaMatch = String(sql).trim().match(/^PRAGMA\s+table_info\((\w+)\)$/i);
+      if (pragmaMatch) {
+        const tableName = pragmaMatch[1];
+        const [rows] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+        return rows.map((row) => ({ name: row.Field }));
+      }
+
+      const [rows] = await execute(sql, normalizeParams(params));
+      return Array.isArray(rows) ? rows : [];
+    },
+  };
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS gateways (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      base_url TEXT NOT NULL,
+      vendor TEXT NOT NULL DEFAULT 'generic',
+      site_name TEXT,
+      auth_header TEXT NOT NULL DEFAULT 'Authorization',
+      config_path TEXT NOT NULL DEFAULT '/api/config/export',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gateway_api_keys (
+      id TEXT PRIMARY KEY,
+      gateway_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      encrypted_key TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT,
+      FOREIGN KEY(gateway_id) REFERENCES gateways(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS gateway_config_cache (
+      id TEXT PRIMARY KEY,
+      gateway_id TEXT NOT NULL,
+      api_key_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      config_sha256 TEXT,
+      config_blob TEXT,
+      metadata_json TEXT,
+      error_text TEXT,
+      fetched_at TEXT NOT NULL,
+      FOREIGN KEY(gateway_id) REFERENCES gateways(id) ON DELETE CASCADE,
+      FOREIGN KEY(api_key_id) REFERENCES gateway_api_keys(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_gateway_api_keys_gateway_id
+      ON gateway_api_keys(gateway_id);
+
+    CREATE INDEX IF NOT EXISTS idx_gateway_config_cache_gateway_id
+      ON gateway_config_cache(gateway_id, fetched_at DESC);
+  `);
+
+  return db;
+};
+
+export const createDatabase = async (dbPath, config = { client: 'sqlite' }) => {
+  if (config.client === 'mysql') {
+    return createMysqlDatabase(config.mysql);
+  }
+
+  return createSqliteDatabase(dbPath);
 };

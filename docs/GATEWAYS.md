@@ -251,7 +251,7 @@ Recommended runtime:
 
 - Node.js 20 or newer
 
-This backend uses `sql.js` so it keeps a SQLite database file without requiring a native `sqlite3` binary. That avoids common glibc and platform mismatch issues on Linux hosts.
+By default this backend uses `sql.js` so it keeps SQLite database files without requiring a native `sqlite3` binary. Set `EDGEOPS_DB_CLIENT=mysql` to use MySQL instead.
 
 Install dependencies:
 
@@ -270,12 +270,11 @@ The server automatically loads values from `.env` in the project root.
 Important:
 
 - Use the site edit/delete API or UI while the server is running.
-- Avoid editing `data/sites.sqlite` manually until the API is stopped, because the in-memory database will otherwise overwrite on-disk changes during the next write.
+- When using SQLite, avoid editing `data/sites.sqlite` manually until the API is stopped, because the in-memory database will otherwise overwrite on-disk changes during the next write.
 
 ## Production Recommendations
 
 - Replace local key storage with a real secret manager
-- Add authentication and authorization middleware
 - Add audit logging for key creation and config downloads
 - Add scheduled background sync jobs
 - Add certificate and TLS validation controls where needed

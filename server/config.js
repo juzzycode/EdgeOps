@@ -12,10 +12,25 @@ const normalizeApiPrefix = (value) => {
   return normalized || '/api';
 };
 
+const databaseClient = String(process.env.EDGEOPS_DB_CLIENT ?? 'sqlite').trim().toLowerCase();
+
 export const serverConfig = {
   apiHost: process.env.EDGEOPS_API_HOST ?? '127.0.0.1',
   apiPort: Number(process.env.EDGEOPS_API_PORT ?? process.env.EDGEOPS_PORT ?? 8787),
   apiPrefix: normalizeApiPrefix(process.env.EDGEOPS_API_PREFIX),
+  database: {
+    client: databaseClient === 'mysql' ? 'mysql' : 'sqlite',
+    mysql: {
+      uri: process.env.EDGEOPS_MYSQL_URI ?? '',
+      host: process.env.EDGEOPS_MYSQL_HOST ?? '127.0.0.1',
+      port: Number(process.env.EDGEOPS_MYSQL_PORT ?? 3306),
+      user: process.env.EDGEOPS_MYSQL_USER ?? 'edgeops',
+      password: process.env.EDGEOPS_MYSQL_PASSWORD ?? '',
+      database: process.env.EDGEOPS_MYSQL_DATABASE ?? 'edgeops',
+      ssl: process.env.EDGEOPS_MYSQL_SSL === 'true',
+      connectionLimit: Number(process.env.EDGEOPS_MYSQL_CONNECTION_LIMIT ?? 10),
+    },
+  },
   dbPath: path.resolve(process.cwd(), process.env.EDGEOPS_DB_PATH ?? path.join(dataDir, 'edgeops-cache.sqlite')),
   secret: process.env.EDGEOPS_SECRET ?? '',
   corsOrigin: process.env.EDGEOPS_CORS_ORIGIN ?? '*',

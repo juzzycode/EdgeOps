@@ -39,11 +39,12 @@ const verboseLogging = process.argv.includes('-v') || process.argv.includes('--v
 
 const start = async () => {
   const app = express();
-  const db = await createDatabase(serverConfig.dbPath);
-  const sitesDb = await createDatabase(serverConfig.sitesDbPath);
-  const authDb = await createDatabase(serverConfig.authDbPath);
+  const db = await createDatabase(serverConfig.dbPath, serverConfig.database);
+  const sitesDb = await createDatabase(serverConfig.sitesDbPath, serverConfig.database);
+  const authDb = await createDatabase(serverConfig.authDbPath, serverConfig.database);
   const setupStore = await createSetupStore({
     files: serverConfig.setupFiles,
+    db: serverConfig.database.client === 'mysql' ? authDb : null,
     secret: serverConfig.secret,
   });
   const siteStore = createSiteStore({ db: sitesDb });
