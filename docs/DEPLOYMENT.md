@@ -81,6 +81,56 @@ On first start, EdgeOps creates its tables in that database. Existing SQLite dat
 
 Config snapshots and gateway config cache entries are stored in the database as `LONGTEXT` when MySQL is used. They are not served from `dist/` or the repo-local `data/` directory.
 
+### Import Existing SQLite Data Into MySQL
+
+Use the importer when moving an existing SQLite install to MySQL. Keep `EDGEOPS_SECRET` exactly the same; encrypted API keys and setup values are copied as-is.
+
+1. Stop EdgeOps:
+
+```bash
+./stop.sh
+```
+
+2. Back up the current `data/` directory.
+
+3. Set the MySQL variables in `.env`, including:
+
+```env
+EDGEOPS_DB_CLIENT=mysql
+EDGEOPS_MYSQL_HOST=127.0.0.1
+EDGEOPS_MYSQL_PORT=3306
+EDGEOPS_MYSQL_USER=edgeops
+EDGEOPS_MYSQL_PASSWORD=change-me
+EDGEOPS_MYSQL_DATABASE=edgeops
+```
+
+4. Install dependencies after pulling the MySQL support:
+
+```bash
+npm install
+```
+
+5. Preview what will be imported:
+
+```bash
+npm run import:mysql -- --dry-run
+```
+
+6. Import the rows:
+
+```bash
+npm run import:mysql
+```
+
+The importer creates any missing MySQL tables, then upserts rows from:
+
+- `EDGEOPS_DB_PATH`, normally `data/edgeops-cache.sqlite`
+- `data/sites.sqlite`
+- `data/auth.sqlite`
+- `data/setup/*.sqlite`
+
+Run `./start.sh` after the import finishes.
+
 ## nginx
 
 An example nginx site file is included at `docs/deploy/nginx.edgeops.conf`.

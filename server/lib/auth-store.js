@@ -47,6 +47,7 @@ export const createAuthStore = async ({
   sessionTtlHours = 12,
   defaultAdminUsername = 'admin',
   defaultAdminPassword = 'edgeops-admin',
+  seedDefaultAdmin = true,
 }) => {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -78,7 +79,7 @@ export const createAuthStore = async ({
   `);
 
   const existingUser = await db.get(`SELECT id FROM users LIMIT 1`);
-  if (!existingUser) {
+  if (seedDefaultAdmin && !existingUser) {
     const now = isoNow();
     await db.run(
       `INSERT INTO users (id, username, password_hash, role, site_id, is_active, created_at, updated_at, password_changed_at)
