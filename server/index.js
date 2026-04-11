@@ -70,7 +70,13 @@ const start = async () => {
   const topologyService = createTopologyService({ siteStore, fortiGateClient });
   const deviceActionService = createDeviceActionService({ siteStore, fortiGateClient, historyStore });
   const gatewayConfigService = createGatewayConfigService({ repository });
-  const openApiDocument = createOpenApiDocument({ port: serverConfig.port, setupFiles: serverConfig.setupFiles });
+  const apiPath = (path = '') => `${serverConfig.apiPrefix}${path}`;
+  const openApiDocument = createOpenApiDocument({
+    host: serverConfig.apiHost,
+    port: serverConfig.apiPort,
+    apiPrefix: serverConfig.apiPrefix,
+    setupFiles: serverConfig.setupFiles,
+  });
   const requireSession = createAuthMiddleware({ authStore });
 
   app.use(express.json());
@@ -149,79 +155,80 @@ const start = async () => {
         <h1>EdgeOps Cloud API</h1>
         <p>Site onboarding, live FortiGate summaries, gateway key storage, and cached configuration retrieval for EdgeOps Cloud.</p>
         <ul>
-          <li><a href="/api">JSON API index</a> <code>GET /api</code></li>
-          <li><a href="/api/docs">Swagger UI</a> <code>GET /api/docs</code></li>
-          <li><a href="/api/openapi.json">OpenAPI spec</a> <code>GET /api/openapi.json</code></li>
-          <li><a href="/api/health">Health check</a> <code>GET /api/health</code></li>
-          <li><a href="/api/auth/session">Current session</a> <code>GET /api/auth/session</code></li>
-          <li><a href="/api/sites">Sites</a> <code>GET /api/sites</code></li>
-          <li><a href="/api/topology">Topology</a> <code>GET /api/topology</code></li>
-          <li><a href="/api/sites">Site Config Archive</a> <code>GET /api/sites/:id/config-snapshots</code></li>
-          <li><a href="/api/events">Events</a> <code>GET /api/events</code></li>
-          <li><a href="/api/alerts">Alerts</a> <code>GET /api/alerts</code></li>
-          <li><a href="/api/profiles">Profiles</a> <code>GET /api/profiles</code></li>
-          <li><a href="/api/firmware">Firmware</a> <code>GET /api/firmware</code></li>
-          <li><a href="/api/fortigates">FortiGates</a> <code>GET /api/fortigates</code></li>
-          <li><a href="/api/switches">Switches</a> <code>GET /api/switches</code></li>
-          <li><a href="/api/aps">Access Points</a> <code>GET /api/aps</code></li>
-          <li><a href="/api/aps/rogues">Rogue APs</a> <code>GET /api/aps/rogues</code></li>
-          <li><a href="/api/clients">Clients</a> <code>GET /api/clients</code></li>
-          <li><a href="/api/gateways">Gateway list</a> <code>GET /api/gateways</code></li>
+          <li><a href="${apiPath()}">JSON API index</a> <code>GET ${apiPath()}</code></li>
+          <li><a href="${apiPath('/docs')}">Swagger UI</a> <code>GET ${apiPath('/docs')}</code></li>
+          <li><a href="${apiPath('/openapi.json')}">OpenAPI spec</a> <code>GET ${apiPath('/openapi.json')}</code></li>
+          <li><a href="${apiPath('/health')}">Health check</a> <code>GET ${apiPath('/health')}</code></li>
+          <li><a href="${apiPath('/auth/session')}">Current session</a> <code>GET ${apiPath('/auth/session')}</code></li>
+          <li><a href="${apiPath('/sites')}">Sites</a> <code>GET ${apiPath('/sites')}</code></li>
+          <li><a href="${apiPath('/topology')}">Topology</a> <code>GET ${apiPath('/topology')}</code></li>
+          <li><a href="${apiPath('/sites')}">Site Config Archive</a> <code>GET ${apiPath('/sites/:id/config-snapshots')}</code></li>
+          <li><a href="${apiPath('/events')}">Events</a> <code>GET ${apiPath('/events')}</code></li>
+          <li><a href="${apiPath('/alerts')}">Alerts</a> <code>GET ${apiPath('/alerts')}</code></li>
+          <li><a href="${apiPath('/profiles')}">Profiles</a> <code>GET ${apiPath('/profiles')}</code></li>
+          <li><a href="${apiPath('/firmware')}">Firmware</a> <code>GET ${apiPath('/firmware')}</code></li>
+          <li><a href="${apiPath('/fortigates')}">FortiGates</a> <code>GET ${apiPath('/fortigates')}</code></li>
+          <li><a href="${apiPath('/switches')}">Switches</a> <code>GET ${apiPath('/switches')}</code></li>
+          <li><a href="${apiPath('/aps')}">Access Points</a> <code>GET ${apiPath('/aps')}</code></li>
+          <li><a href="${apiPath('/aps/rogues')}">Rogue APs</a> <code>GET ${apiPath('/aps/rogues')}</code></li>
+          <li><a href="${apiPath('/clients')}">Clients</a> <code>GET ${apiPath('/clients')}</code></li>
+          <li><a href="${apiPath('/gateways')}">Gateway list</a> <code>GET ${apiPath('/gateways')}</code></li>
         </ul>
-        <p>Configured port: <code>${serverConfig.port}</code></p>
+        <p>Configured bind: <code>${serverConfig.apiHost}:${serverConfig.apiPort}</code></p>
+        <p>API prefix: <code>${serverConfig.apiPrefix}</code></p>
       </div>
     </main>
   </body>
 </html>`);
   });
 
-  app.get('/api', (_request, response) => {
+  app.get(apiPath(), (_request, response) => {
     response.json({
       name: 'EdgeOps Cloud API',
       version: '1.0.0',
-      docs: '/api/docs',
-      openApi: '/api/openapi.json',
+      docs: apiPath('/docs'),
+      openApi: apiPath('/openapi.json'),
       routes: {
-        health: '/api/health',
-        login: '/api/auth/login',
-        session: '/api/auth/session',
-        logout: '/api/auth/logout',
-        users: '/api/users',
-        setupStatus: '/api/setup/status',
-        setupWizard: '/api/setup/wizard',
-        sites: '/api/sites',
-        siteDetail: '/api/sites/:id',
-        siteHistory: '/api/sites/:id/history',
-        siteTopology: '/api/sites/:id/topology',
-        siteConfigSnapshots: '/api/sites/:id/config-snapshots',
-        siteConfigSync: '/api/sites/:id/config-snapshots/sync',
-        siteConfigDownload: '/api/sites/:id/config-snapshots/:snapshotId/download',
-        siteConfigDiff: '/api/sites/:id/config-diffs',
-        alerts: '/api/alerts',
-        events: '/api/events',
-        profiles: '/api/profiles',
-        firmware: '/api/firmware',
-        fortiGates: '/api/fortigates',
-        fortiGateDetail: '/api/fortigates/:id',
-        topology: '/api/topology',
-        switches: '/api/switches',
-        switchDetail: '/api/switches/:id',
-        switchActions: '/api/switches/:id/actions',
-        accessPoints: '/api/aps',
-        rogueAccessPoints: '/api/aps/rogues',
-        accessPointDetail: '/api/aps/:id',
-        accessPointActions: '/api/aps/:id/actions',
-        clients: '/api/clients',
-        gateways: '/api/gateways',
-        gatewayApiKeys: '/api/gateways/:gatewayId/api-keys',
-        syncConfig: '/api/gateways/:gatewayId/sync-config',
-        configCache: '/api/gateways/:gatewayId/config-cache',
-        latestConfigCache: '/api/gateways/:gatewayId/config-cache/latest',
+        health: apiPath('/health'),
+        login: apiPath('/auth/login'),
+        session: apiPath('/auth/session'),
+        logout: apiPath('/auth/logout'),
+        users: apiPath('/users'),
+        setupStatus: apiPath('/setup/status'),
+        setupWizard: apiPath('/setup/wizard'),
+        sites: apiPath('/sites'),
+        siteDetail: apiPath('/sites/:id'),
+        siteHistory: apiPath('/sites/:id/history'),
+        siteTopology: apiPath('/sites/:id/topology'),
+        siteConfigSnapshots: apiPath('/sites/:id/config-snapshots'),
+        siteConfigSync: apiPath('/sites/:id/config-snapshots/sync'),
+        siteConfigDownload: apiPath('/sites/:id/config-snapshots/:snapshotId/download'),
+        siteConfigDiff: apiPath('/sites/:id/config-diffs'),
+        alerts: apiPath('/alerts'),
+        events: apiPath('/events'),
+        profiles: apiPath('/profiles'),
+        firmware: apiPath('/firmware'),
+        fortiGates: apiPath('/fortigates'),
+        fortiGateDetail: apiPath('/fortigates/:id'),
+        topology: apiPath('/topology'),
+        switches: apiPath('/switches'),
+        switchDetail: apiPath('/switches/:id'),
+        switchActions: apiPath('/switches/:id/actions'),
+        accessPoints: apiPath('/aps'),
+        rogueAccessPoints: apiPath('/aps/rogues'),
+        accessPointDetail: apiPath('/aps/:id'),
+        accessPointActions: apiPath('/aps/:id/actions'),
+        clients: apiPath('/clients'),
+        gateways: apiPath('/gateways'),
+        gatewayApiKeys: apiPath('/gateways/:gatewayId/api-keys'),
+        syncConfig: apiPath('/gateways/:gatewayId/sync-config'),
+        configCache: apiPath('/gateways/:gatewayId/config-cache'),
+        latestConfigCache: apiPath('/gateways/:gatewayId/config-cache/latest'),
       },
     });
   });
 
-  app.get('/api/health', (_request, response) => {
+  app.get(apiPath('/health'), (_request, response) => {
     response.json({
       ok: true,
       dbPath: serverConfig.dbPath,
@@ -229,41 +236,41 @@ const start = async () => {
     });
   });
 
-  app.get('/api/openapi.json', (_request, response) => {
+  app.get(apiPath('/openapi.json'), (_request, response) => {
     response.json(openApiDocument);
   });
 
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
-  app.use('/api/auth', createAuthRouter({ authStore, sessionTtlHours: serverConfig.sessionTtlHours }));
-  app.post('/api/logout', requireSession, async (request, response) => {
+  app.use(apiPath('/docs'), swaggerUi.serve, swaggerUi.setup(openApiDocument));
+  app.use(apiPath('/auth'), createAuthRouter({ authStore, sessionTtlHours: serverConfig.sessionTtlHours }));
+  app.post(apiPath('/logout'), requireSession, async (request, response) => {
     await authStore.deleteSessionByToken(request.auth.token);
     clearSessionCookie(response);
     response.status(204).send();
   });
-  app.use('/api', requireSession);
-  app.use('/api/setup', createSetupRouter({ setupStore }));
-  app.use('/api/sites', createSitesRouter({ siteStore, fortiGateClient, siteConfigArchiveService, historyService, topologyService }));
-  app.use('/api/alerts', createAlertsRouter({ alertService }));
-  app.use('/api/events', createEventsRouter({ historyStore }));
-  app.use('/api/profiles', createProfilesRouter({ inventoryService }));
-  app.use('/api/firmware', createFirmwareRouter({ inventoryService }));
-  app.use('/api/fortigates', createFortiGatesRouter({ siteStore, fortiGateClient, hostScanService }));
-  app.use('/api/topology', createTopologyRouter({ topologyService }));
-  app.use('/api/switches', createSwitchesRouter({ siteStore, fortiGateClient, deviceActionService }));
-  app.use('/api/aps', createApsRouter({ siteStore, fortiGateClient, deviceActionService }));
-  app.use('/api/clients', createClientsRouter({ siteStore, fortiGateClient }));
-  app.use('/api/users', createUsersRouter({ authStore, siteStore }));
+  app.use(apiPath(), requireSession);
+  app.use(apiPath('/setup'), createSetupRouter({ setupStore }));
+  app.use(apiPath('/sites'), createSitesRouter({ siteStore, fortiGateClient, siteConfigArchiveService, historyService, topologyService }));
+  app.use(apiPath('/alerts'), createAlertsRouter({ alertService }));
+  app.use(apiPath('/events'), createEventsRouter({ historyStore }));
+  app.use(apiPath('/profiles'), createProfilesRouter({ inventoryService }));
+  app.use(apiPath('/firmware'), createFirmwareRouter({ inventoryService }));
+  app.use(apiPath('/fortigates'), createFortiGatesRouter({ siteStore, fortiGateClient, hostScanService }));
+  app.use(apiPath('/topology'), createTopologyRouter({ topologyService }));
+  app.use(apiPath('/switches'), createSwitchesRouter({ siteStore, fortiGateClient, deviceActionService }));
+  app.use(apiPath('/aps'), createApsRouter({ siteStore, fortiGateClient, deviceActionService }));
+  app.use(apiPath('/clients'), createClientsRouter({ siteStore, fortiGateClient }));
+  app.use(apiPath('/users'), createUsersRouter({ authStore, siteStore }));
 
   app.use(
-    '/api/gateways',
+    apiPath('/gateways'),
     createGatewayRouter({
       repository,
       gatewayConfigService,
     }),
   );
 
-  const server = app.listen(serverConfig.port, () => {
-    console.log(`EdgeOps gateway cache API listening on http://localhost:${serverConfig.port}`);
+  const server = app.listen(serverConfig.apiPort, serverConfig.apiHost, () => {
+    console.log(`EdgeOps gateway cache API listening on http://${serverConfig.apiHost}:${serverConfig.apiPort}${serverConfig.apiPrefix}`);
     if (verboseLogging) {
       console.log('[api] Verbose request logging enabled');
     }
@@ -275,7 +282,7 @@ const start = async () => {
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       console.error(
-        `Port ${serverConfig.port} is already in use. Check your .env value for EDGEOPS_PORT or stop the existing process.`,
+        `Port ${serverConfig.apiPort} is already in use. Check your .env value for EDGEOPS_API_PORT or stop the existing process.`,
       );
       process.exit(1);
     }

@@ -23,8 +23,24 @@ const resolveApiBaseUrl = () => {
   }
 };
 
+const normalizeApiPrefix = (value?: string) => {
+  const trimmed = (value || '/api').trim();
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const normalized = withLeadingSlash.replace(/\/+$/, '');
+
+  return normalized || '/api';
+};
+
 const apiBaseUrl = resolveApiBaseUrl();
-const withApiBase = (input: string) => `${apiBaseUrl}${input}`;
+const apiPrefix = normalizeApiPrefix(import.meta.env.VITE_API_PREFIX);
+const withApiPrefix = (input: string) => {
+  if (apiPrefix === '/api') return input;
+  if (input === '/api') return apiPrefix;
+  if (input.startsWith('/api/')) return `${apiPrefix}${input.slice('/api'.length)}`;
+
+  return input;
+};
+const withApiBase = (input: string) => `${apiBaseUrl}${withApiPrefix(input)}`;
 let sessionRequest: Promise<AuthSession | null> | null = null;
 
 class ApiError extends Error {

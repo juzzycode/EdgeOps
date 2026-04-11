@@ -9,7 +9,16 @@ const distDir = path.resolve(process.cwd(), 'dist');
 const indexPath = path.join(distDir, 'index.html');
 const frontendPort = Number(process.env.EDGEOPS_FRONTEND_PORT ?? 8080);
 const frontendHost = process.env.EDGEOPS_FRONTEND_HOST ?? '0.0.0.0';
-const apiOrigin = process.env.EDGEOPS_API_ORIGIN ?? `http://127.0.0.1:${process.env.EDGEOPS_PORT ?? 8787}`;
+const apiHost = process.env.EDGEOPS_API_HOST ?? '127.0.0.1';
+const apiPort = process.env.EDGEOPS_API_PORT ?? process.env.EDGEOPS_PORT ?? 8787;
+const apiPrefix = (() => {
+  const trimmed = String(process.env.EDGEOPS_API_PREFIX ?? '/api').trim();
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const normalized = withLeadingSlash.replace(/\/+$/, '');
+
+  return normalized || '/api';
+})();
+const apiOrigin = process.env.EDGEOPS_API_ORIGIN ?? `http://${apiHost}:${apiPort}`;
 
 let apiUrl;
 
@@ -27,7 +36,7 @@ if (!fs.existsSync(indexPath)) {
 }
 
 const proxyTransport = apiUrl.protocol === 'https:' ? https : http;
-const apiPort = apiUrl.port || (apiUrl.protocol === 'https:' ? '443' : '80');
+const upstreamApiPort = apiUrl.port || (apiUrl.protocol === 'https:' ? '443' : '80');
 const apiBasePath = apiUrl.pathname === '/' ? '' : apiUrl.pathname.replace(/\/$/, '');
 
 const appendForwardedFor = (existing, remoteAddress) => {
@@ -55,12 +64,12 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
 
-app.use('/api', (request, response) => {
+app.use(apiPrefix, (request, response) => {
   const proxyRequest = proxyTransport.request(
     {
       protocol: apiUrl.protocol,
       hostname: apiUrl.hostname,
-      port: apiPort,
+      port: upstreamApiPort,
       method: request.method,
       path: `${apiBasePath}${request.originalUrl}`,
       headers: {
@@ -116,7 +125,7 @@ app.get('*', (request, response, next) => {
 
 const server = app.listen(frontendPort, frontendHost, () => {
   console.log(`EdgeOps frontend listening on http://${frontendHost}:${frontendPort}`);
-  console.log(`Proxying /api requests to ${apiUrl.origin}${apiBasePath || '/'}`);
+  console.log(`Proxying ${apiPrefix} requests to ${apiUrl.origin}${apiBasePath || '/'}`);
 });
 
 server.on('error', (error) => {

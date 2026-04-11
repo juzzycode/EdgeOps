@@ -177,9 +177,9 @@ chmod +x ./start.sh
 By default this:
 
 - builds `dist/`
-- starts the API on `EDGEOPS_PORT` or `8787`
+- starts the API on `EDGEOPS_API_HOST` and `EDGEOPS_API_PORT`, defaulting to `127.0.0.1:8787`
 - starts the production frontend on `EDGEOPS_FRONTEND_PORT` or `8080`
-- proxies frontend `/api` traffic back to the backend automatically
+- proxies frontend `EDGEOPS_API_PREFIX` traffic back to the backend automatically
 
 To stop a running production instance from another shell:
 

@@ -4,8 +4,18 @@ import path from 'node:path';
 const dataDir = path.resolve(process.cwd(), './data');
 const setupDir = path.resolve(dataDir, './setup');
 
+const normalizeApiPrefix = (value) => {
+  const trimmed = String(value ?? '/api').trim();
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const normalized = withLeadingSlash.replace(/\/+$/, '');
+
+  return normalized || '/api';
+};
+
 export const serverConfig = {
-  port: Number(process.env.EDGEOPS_PORT ?? 8787),
+  apiHost: process.env.EDGEOPS_API_HOST ?? '127.0.0.1',
+  apiPort: Number(process.env.EDGEOPS_API_PORT ?? process.env.EDGEOPS_PORT ?? 8787),
+  apiPrefix: normalizeApiPrefix(process.env.EDGEOPS_API_PREFIX),
   dbPath: path.resolve(process.cwd(), process.env.EDGEOPS_DB_PATH ?? path.join(dataDir, 'edgeops-cache.sqlite')),
   secret: process.env.EDGEOPS_SECRET ?? '',
   corsOrigin: process.env.EDGEOPS_CORS_ORIGIN ?? '*',

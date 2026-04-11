@@ -38,12 +38,14 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-API_PORT="${EDGEOPS_PORT:-8787}"
+API_HOST="${EDGEOPS_API_HOST:-127.0.0.1}"
+API_PORT="${EDGEOPS_API_PORT:-${EDGEOPS_PORT:-8787}}"
+API_PREFIX="${EDGEOPS_API_PREFIX:-/api}"
 FRONTEND_PORT="${EDGEOPS_FRONTEND_PORT:-8080}"
 FRONTEND_HOST="${EDGEOPS_FRONTEND_HOST:-0.0.0.0}"
 DEV_FRONTEND_PORT="${EDGEOPS_DEV_FRONTEND_PORT:-5173}"
 DEV_FRONTEND_HOST="${EDGEOPS_DEV_FRONTEND_HOST:-0.0.0.0}"
-EDGEOPS_API_ORIGIN="${EDGEOPS_API_ORIGIN:-http://127.0.0.1:${API_PORT}}"
+EDGEOPS_API_ORIGIN="${EDGEOPS_API_ORIGIN:-http://${API_HOST}:${API_PORT}}"
 RUNTIME_FRONTEND_PORT="$FRONTEND_PORT"
 RUNTIME_FRONTEND_HOST="$FRONTEND_HOST"
 
@@ -55,6 +57,9 @@ else
   export NODE_ENV="${NODE_ENV:-production}"
 fi
 export EDGEOPS_API_ORIGIN
+export EDGEOPS_API_HOST="$API_HOST"
+export EDGEOPS_API_PORT="$API_PORT"
+export EDGEOPS_API_PREFIX="$API_PREFIX"
 
 backend_pid=""
 frontend_pid=""
@@ -131,7 +136,9 @@ write_runtime_files() {
   cat >"$RUNTIME_ENV_FILE" <<EOF
 EDGEOPS_START_MODE=$START_MODE
 EDGEOPS_DETACH_MODE=$DETACH_MODE
-EDGEOPS_PORT=$API_PORT
+EDGEOPS_API_HOST=$API_HOST
+EDGEOPS_API_PORT=$API_PORT
+EDGEOPS_API_PREFIX=$API_PREFIX
 EDGEOPS_FRONTEND_PORT=$RUNTIME_FRONTEND_PORT
 EDGEOPS_FRONTEND_HOST=$RUNTIME_FRONTEND_HOST
 EDGEOPS_API_ORIGIN=$EDGEOPS_API_ORIGIN
@@ -182,18 +189,18 @@ if [[ "$START_MODE" == "production" ]]; then
   fi
 fi
 
-echo "[start] Starting API on http://127.0.0.1:${API_PORT}"
+echo "[start] Starting API on http://${API_HOST}:${API_PORT}${API_PREFIX}"
 node server/index.js &
 backend_pid=$!
 
 if [[ "$START_MODE" == "dev" ]]; then
   echo "[start] Starting dev frontend on http://${DEV_FRONTEND_HOST}:${DEV_FRONTEND_PORT}"
-  echo "[start] Vite will proxy /api to http://127.0.0.1:${API_PORT}"
+  echo "[start] Vite will proxy ${API_PREFIX} to http://${API_HOST}:${API_PORT}"
   npm run dev -- --host "${DEV_FRONTEND_HOST}" --port "${DEV_FRONTEND_PORT}" &
   frontend_pid=$!
 else
   echo "[start] Starting frontend on http://${FRONTEND_HOST}:${FRONTEND_PORT}"
-  echo "[start] Frontend will proxy /api to ${EDGEOPS_API_ORIGIN}"
+  echo "[start] Frontend will proxy ${API_PREFIX} to ${EDGEOPS_API_ORIGIN}"
   node server/frontend.js &
   frontend_pid=$!
 fi

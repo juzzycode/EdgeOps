@@ -1020,7 +1020,8 @@ const components = {
   },
 };
 
-export const createOpenApiDocument = ({ port }) => ({
+export const createOpenApiDocument = ({ host = 'localhost', port, apiPrefix = '/api' }) => {
+  const document = {
   openapi: '3.0.3',
   info: {
     title: 'EdgeOps Gateway Cache API',
@@ -1030,7 +1031,7 @@ export const createOpenApiDocument = ({ port }) => ({
   },
   servers: [
     {
-      url: `http://localhost:${port}`,
+      url: `http://${host}:${port}`,
       description: 'Local development server',
     },
   ],
@@ -2184,4 +2185,11 @@ export const createOpenApiDocument = ({ port }) => ({
       },
     },
   },
-});
+  };
+
+  if (apiPrefix === '/api') {
+    return document;
+  }
+
+  return JSON.parse(JSON.stringify(document).replaceAll('"/api', `"${apiPrefix}`));
+};

@@ -7,7 +7,7 @@ The repository now includes a repo-root `start.sh` that:
 - builds the frontend into `dist/` by default
 - starts the backend API with `node server/index.js`
 - starts a production frontend server with `node server/frontend.js`
-- serves the SPA from `dist/` and proxies `/api` back to the backend
+- serves the SPA from `dist/` and proxies the API prefix back to the backend
 
 Run it from the project root:
 
@@ -30,16 +30,22 @@ chmod +x ./stop.sh
 
 These values can live in `.env` before you run `./start.sh`:
 
-- `EDGEOPS_PORT`
+- `EDGEOPS_API_HOST`
+  Backend API bind address. Default: `127.0.0.1`
+- `EDGEOPS_API_PORT`
   Backend API port. Default: `8787`
+- `EDGEOPS_API_PREFIX`
+  URL prefix for backend API routes. Default: `/api`
 - `EDGEOPS_FRONTEND_PORT`
   Production frontend port. Default: `8080`
 - `EDGEOPS_FRONTEND_HOST`
   Bind address for the frontend server. Default: `0.0.0.0`
 - `EDGEOPS_API_ORIGIN`
-  Optional override for where the frontend proxies `/api`. Default: `http://127.0.0.1:$EDGEOPS_PORT`
+  Optional override for where the frontend proxies `EDGEOPS_API_PREFIX`. Default: `http://$EDGEOPS_API_HOST:$EDGEOPS_API_PORT`
 - `EDGEOPS_SKIP_BUILD`
   Set to `1` when you already built `dist/` and do not want `start.sh` to run `npm run build`
+
+`EDGEOPS_PORT` is still accepted as a legacy fallback for `EDGEOPS_API_PORT`, but new installs should use `EDGEOPS_API_PORT`.
 
 ## nginx
 
@@ -57,7 +63,23 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-The example reverse proxies all traffic to the production frontend server on `127.0.0.1:8080`, and that frontend server forwards `/api` to the backend.
+The example maps `/api` directly to the internal backend on `127.0.0.1:8787`, then sends all other traffic to the production frontend on `127.0.0.1:8080`.
+
+If you keep the default environment, the important nginx shape is:
+
+```nginx
+location /api {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:8080;
+}
+```
 
 ## Apache
 
