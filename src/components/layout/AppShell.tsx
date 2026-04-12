@@ -109,7 +109,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                 <h1 className="mt-2 text-2xl font-semibold text-text">Network operations, simplified.</h1>
               </div>
             </div>
-            <p className="mt-2 text-sm text-muted">Original monitoring UI built for distributed switching and wireless visibility.</p>
+            <p className="mt-2 text-sm text-muted">MultiVendor monitoring reimagined.</p>
           </div>
           <nav className="mt-6 space-y-1">
             {navItems.map(([label, to]) => (

@@ -186,7 +186,13 @@ export const api = {
     const sitePingSeries: SitePingSeries[] = siteHistoryResults.map(({ site, history }) => {
       const points = buildThirtyMinuteBuckets(history.metrics);
       const packetLossValues = points
-        .map((point) => point.latencyPacketLoss)
+        .map((point) => {
+          if (typeof point.latencyPacketLoss === 'number' && Number.isFinite(point.latencyPacketLoss)) {
+            return point.latencyPacketLoss;
+          }
+
+          return point.isDown ? 100 : null;
+        })
         .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
       const lastReplyAt = [...points]
         .reverse()
