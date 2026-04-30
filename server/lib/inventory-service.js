@@ -25,11 +25,23 @@ const isGenericTargetLabel = (value) => {
   return !normalized || ['no staged target', 'latest staged target', 'managed by fortigate', 'unknown'].includes(normalized);
 };
 
-export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
+export const createInventoryService = ({ siteStore, fortiGateClient, inventoryCacheService }) => ({
   async listProfiles({ siteId } = {}) {
     const sites = siteId ? [await siteStore.getSiteById(siteId)].filter(Boolean) : await siteStore.listSites();
-    const switchResults = await Promise.allSettled(sites.map((site) => fortiGateClient.listManagedSwitchesForSite(site)));
-    const apResults = await Promise.allSettled(sites.map((site) => fortiGateClient.listManagedAccessPointsForSite(site)));
+    const switchResults = await Promise.allSettled(
+      sites.map((site) =>
+        inventoryCacheService.listCachedOrRefresh(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+          logLabel: 'profiles',
+        }),
+      ),
+    );
+    const apResults = await Promise.allSettled(
+      sites.map((site) =>
+        inventoryCacheService.listCachedOrRefresh(site, 'accessPoints', () => fortiGateClient.listManagedAccessPointsForSite(site), {
+          logLabel: 'profiles',
+        }),
+      ),
+    );
 
     const switches = switchResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
     const accessPoints = apResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
@@ -147,8 +159,20 @@ export const createInventoryService = ({ siteStore, fortiGateClient }) => ({
     const sites = siteId ? [await siteStore.getSiteById(siteId)].filter(Boolean) : await siteStore.listSites();
     const siteMap = buildSiteMap(sites);
     const siteSummaryResults = await Promise.allSettled(sites.map((site) => fortiGateClient.summarizeSite(site)));
-    const switchResults = await Promise.allSettled(sites.map((site) => fortiGateClient.listManagedSwitchesForSite(site)));
-    const apResults = await Promise.allSettled(sites.map((site) => fortiGateClient.listManagedAccessPointsForSite(site)));
+    const switchResults = await Promise.allSettled(
+      sites.map((site) =>
+        inventoryCacheService.listCachedOrRefresh(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+          logLabel: 'firmware',
+        }),
+      ),
+    );
+    const apResults = await Promise.allSettled(
+      sites.map((site) =>
+        inventoryCacheService.listCachedOrRefresh(site, 'accessPoints', () => fortiGateClient.listManagedAccessPointsForSite(site), {
+          logLabel: 'firmware',
+        }),
+      ),
+    );
 
     const summarizedSites = siteSummaryResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
     const switches = switchResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));

@@ -1,7 +1,7 @@
 import express from 'express';
 import { getScopedSiteId, requireOperator } from '../lib/auth.js';
 
-export const createApsRouter = ({ siteStore, fortiGateClient, deviceActionService }) => {
+export const createApsRouter = ({ siteStore, fortiGateClient, deviceActionService, inventoryCacheService }) => {
   const router = express.Router();
 
   router.get('/rogues', async (request, response) => {
@@ -17,9 +17,8 @@ export const createApsRouter = ({ siteStore, fortiGateClient, deviceActionServic
     const rogueLists = await Promise.all(
       sites.map(async (site) => ({
         siteId: site.id,
-        rogueAccessPoints: await fortiGateClient.listRogueAccessPointsForSite(site).catch((error) => {
-          console.error(`[aps] Failed to load rogue APs for site ${site.id}:`, error);
-          return [];
+        rogueAccessPoints: await inventoryCacheService.listCachedOrRefresh(site, 'rogueAccessPoints', () => fortiGateClient.listRogueAccessPointsForSite(site), {
+          logLabel: 'aps',
         }),
       })),
     );
@@ -40,9 +39,8 @@ export const createApsRouter = ({ siteStore, fortiGateClient, deviceActionServic
     const apLists = await Promise.all(
       sites.map(async (site) => ({
         siteId: site.id,
-        accessPoints: await fortiGateClient.listManagedAccessPointsForSite(site).catch((error) => {
-          console.error(`[aps] Failed to load APs for site ${site.id}:`, error);
-          return [];
+        accessPoints: await inventoryCacheService.listCachedOrRefresh(site, 'accessPoints', () => fortiGateClient.listManagedAccessPointsForSite(site), {
+          logLabel: 'aps',
         }),
       })),
     );
@@ -55,11 +53,18 @@ export const createApsRouter = ({ siteStore, fortiGateClient, deviceActionServic
     const sites = scopedSiteId ? [await siteStore.getSiteById(scopedSiteId)].filter(Boolean) : await siteStore.listSites();
 
     for (const site of sites) {
-      const device = await fortiGateClient.getManagedAccessPointDetailForSite(site, request.params.id).catch(() => null);
-      if (device) {
-        response.json({ accessPoint: device });
+      const cachedDevice = await inventoryCacheService.findCachedItem(site.id, 'accessPoints', request.params.id);
+      if (cachedDevice) {
+        void inventoryCacheService.refreshCache(site, 'accessPoints', () => fortiGateClient.listManagedAccessPointsForSite(site), {
+          logLabel: 'aps',
+        }).catch(() => null);
+        response.json({ accessPoint: cachedDevice });
         return;
       }
+
+      void inventoryCacheService.refreshCache(site, 'accessPoints', () => fortiGateClient.listManagedAccessPointsForSite(site), {
+        logLabel: 'aps',
+      }).catch(() => null);
     }
 
     response.status(404).json({ error: 'Access point not found' });

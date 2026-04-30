@@ -70,6 +70,19 @@ export const createSiteStore = ({ db }) => ({
       ['config_backups_to_keep', 'ALTER TABLE sites ADD COLUMN config_backups_to_keep INTEGER'],
       ['site_alert_email_enabled', 'ALTER TABLE sites ADD COLUMN site_alert_email_enabled INTEGER NOT NULL DEFAULT 0'],
       ['site_alert_email_recipients', "ALTER TABLE sites ADD COLUMN site_alert_email_recipients TEXT NOT NULL DEFAULT ''"],
+      ['monitor_status', 'ALTER TABLE sites ADD COLUMN monitor_status TEXT'],
+      ['monitor_wan_status', 'ALTER TABLE sites ADD COLUMN monitor_wan_status TEXT'],
+      ['monitor_api_reachable', 'ALTER TABLE sites ADD COLUMN monitor_api_reachable INTEGER'],
+      ['monitor_checked_at', 'ALTER TABLE sites ADD COLUMN monitor_checked_at TEXT'],
+      ['monitor_last_sync_error', 'ALTER TABLE sites ADD COLUMN monitor_last_sync_error TEXT'],
+      ['monitor_client_count', 'ALTER TABLE sites ADD COLUMN monitor_client_count INTEGER'],
+      ['monitor_switch_count', 'ALTER TABLE sites ADD COLUMN monitor_switch_count INTEGER'],
+      ['monitor_ap_count', 'ALTER TABLE sites ADD COLUMN monitor_ap_count INTEGER'],
+      ['monitor_address_object_count', 'ALTER TABLE sites ADD COLUMN monitor_address_object_count INTEGER'],
+      ['monitor_fortigate_name', 'ALTER TABLE sites ADD COLUMN monitor_fortigate_name TEXT'],
+      ['monitor_fortigate_version', 'ALTER TABLE sites ADD COLUMN monitor_fortigate_version TEXT'],
+      ['monitor_fortigate_serial', 'ALTER TABLE sites ADD COLUMN monitor_fortigate_serial TEXT'],
+      ['monitor_wan_ip', 'ALTER TABLE sites ADD COLUMN monitor_wan_ip TEXT'],
     ];
 
     for (const [columnName, sql] of migrations) {
@@ -161,6 +174,15 @@ export const createSiteStore = ({ db }) => ({
         source TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS live_inventory_cache (
+        site_id TEXT NOT NULL,
+        cache_key TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(site_id, cache_key),
+        FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
     `);
   },
@@ -329,6 +351,93 @@ export const createSiteStore = ({ db }) => ({
     );
 
     return this.getSiteById(id);
+  },
+
+  async updateMonitorState(id, summary) {
+    await db.run(
+      `
+        UPDATE sites
+        SET monitor_status = ?, monitor_wan_status = ?, monitor_api_reachable = ?, monitor_checked_at = ?, monitor_last_sync_error = ?,
+            monitor_client_count = ?, monitor_switch_count = ?, monitor_ap_count = ?, monitor_address_object_count = ?,
+            monitor_fortigate_name = ?, monitor_fortigate_version = ?, monitor_fortigate_serial = ?, monitor_wan_ip = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      summary.status ?? null,
+      summary.wanStatus ?? null,
+      summary.apiReachable ? 1 : 0,
+      new Date().toISOString(),
+      summary.lastSyncError ?? null,
+      summary.clientCount ?? 0,
+      summary.switchCount ?? 0,
+      summary.apCount ?? 0,
+      summary.addressObjectCount ?? 0,
+      summary.fortigateName ?? null,
+      summary.fortigateVersion ?? null,
+      summary.fortigateSerial ?? null,
+      summary.wanIp ?? null,
+      nowIso(),
+      id,
+    );
+
+    return this.getSiteById(id);
+  },
+
+  async markSiteNonResponsive(id, error) {
+    return this.updateMonitorState(id, {
+      status: 'offline',
+      wanStatus: 'offline',
+      apiReachable: false,
+      lastSyncError: error instanceof Error ? error.message : 'Site did not respond',
+    });
+  },
+
+  async getInventoryCache(siteId, cacheKey) {
+    const row = await db.get(
+      `
+        SELECT *
+        FROM live_inventory_cache
+        WHERE site_id = ? AND cache_key = ?
+      `,
+      siteId,
+      cacheKey,
+    );
+
+    if (!row) return null;
+
+    try {
+      return {
+        payload: JSON.parse(row.payload_json),
+        updatedAt: row.updated_at,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async setInventoryCache(siteId, cacheKey, payload) {
+    const updatedAt = nowIso();
+    await db.run(
+      `
+        INSERT OR IGNORE INTO live_inventory_cache (site_id, cache_key, payload_json, updated_at)
+        VALUES (?, ?, ?, ?)
+      `,
+      siteId,
+      cacheKey,
+      JSON.stringify(payload ?? []),
+      updatedAt,
+    );
+    await db.run(
+      `
+        UPDATE live_inventory_cache
+        SET payload_json = ?, updated_at = ?
+        WHERE site_id = ? AND cache_key = ?
+      `,
+      JSON.stringify(payload ?? []),
+      updatedAt,
+      siteId,
+      cacheKey,
+    );
   },
 
   async listSiteConfigSnapshots(siteId) {

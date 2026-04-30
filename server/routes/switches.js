@@ -1,7 +1,7 @@
 import express from 'express';
 import { ensureSiteAccess, getScopedSiteId, requireOperator } from '../lib/auth.js';
 
-export const createSwitchesRouter = ({ siteStore, fortiGateClient, deviceActionService }) => {
+export const createSwitchesRouter = ({ siteStore, fortiGateClient, deviceActionService, inventoryCacheService }) => {
   const router = express.Router();
 
   router.get('/', async (request, response) => {
@@ -17,9 +17,8 @@ export const createSwitchesRouter = ({ siteStore, fortiGateClient, deviceActionS
     const switchLists = await Promise.all(
       sites.map(async (site) => ({
         siteId: site.id,
-        switches: await fortiGateClient.listManagedSwitchesForSite(site).catch((error) => {
-          console.error(`[switches] Failed to load switches for site ${site.id}:`, error);
-          return [];
+        switches: await inventoryCacheService.listCachedOrRefresh(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+          logLabel: 'switches',
         }),
       })),
     );
@@ -35,11 +34,19 @@ export const createSwitchesRouter = ({ siteStore, fortiGateClient, deviceActionS
       if (!ensureSiteAccess(request, response, site.id)) {
         return;
       }
-      const device = await fortiGateClient.getManagedSwitchDetailForSite(site, request.params.id).catch(() => null);
-      if (device) {
-        response.json({ switch: device });
+
+      const cachedDevice = await inventoryCacheService.findCachedItem(site.id, 'switches', request.params.id);
+      if (cachedDevice) {
+        void inventoryCacheService.refreshCache(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+          logLabel: 'switches',
+        }).catch(() => null);
+        response.json({ switch: cachedDevice });
         return;
       }
+
+      void inventoryCacheService.refreshCache(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+        logLabel: 'switches',
+      }).catch(() => null);
     }
 
     response.status(404).json({ error: 'Switch not found' });
@@ -54,21 +61,21 @@ export const createSwitchesRouter = ({ siteStore, fortiGateClient, deviceActionS
         return;
       }
 
-      const device = await fortiGateClient.getManagedSwitchDetailForSite(site, request.params.id).catch(() => null);
-      if (!device) {
+      const cachedDevice = await inventoryCacheService.findCachedItem(site.id, 'switches', request.params.id);
+      if (!cachedDevice) {
+        void inventoryCacheService.refreshCache(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+          logLabel: 'switches',
+        }).catch(() => null);
         continue;
       }
 
-      const vlans = await fortiGateClient.listManagedSwitchVlansForSite(site, request.params.id).catch((error) => {
-        response.status(502).json({ error: error instanceof Error ? error.message : 'Unable to load switch VLAN list' });
-        return null;
-      });
+      const cacheKey = `switchVlans:${request.params.id}`;
+      const cachedVlans = await siteStore.getInventoryCache(site.id, cacheKey);
+      void inventoryCacheService.refreshCache(site, cacheKey, () => fortiGateClient.listManagedSwitchVlansForSite(site, request.params.id), {
+        logLabel: 'switches',
+      }).catch(() => null);
 
-      if (!vlans) {
-        return;
-      }
-
-      response.json({ vlans });
+      response.json({ vlans: cachedVlans?.payload ?? [] });
       return;
     }
 

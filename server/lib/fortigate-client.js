@@ -1133,6 +1133,24 @@ const shouldRefreshLatency = (site) => {
   return Date.now() - checkedAt > pingCacheTtlMs;
 };
 
+const hasCachedMonitorSummary = (site) => Boolean(site.monitor_checked_at);
+
+const cachedMonitorSummary = (site) =>
+  normalizeSite(site, {
+    status: site.monitor_status || 'warning',
+    wanStatus: site.monitor_wan_status || 'degraded',
+    clientCount: Number(site.monitor_client_count ?? 0),
+    switchCount: Number(site.monitor_switch_count ?? 0),
+    apCount: Number(site.monitor_ap_count ?? 0),
+    fortigateName: site.monitor_fortigate_name || site.fortigate_name || site.name,
+    wanIp: site.monitor_wan_ip || null,
+    fortigateVersion: site.monitor_fortigate_version || null,
+    fortigateSerial: site.monitor_fortigate_serial || null,
+    addressObjectCount: Number(site.monitor_address_object_count ?? 0),
+    apiReachable: Boolean(site.monitor_api_reachable),
+    lastSyncError: site.monitor_last_sync_error || null,
+  });
+
 const runPing = async (host) => {
   const args =
     process.platform === 'win32'
@@ -1415,7 +1433,17 @@ const mapFortiGateDevice = (site, summary, interfaces = [], details = {}) => ({
 });
 
 export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
-  async summarizeSite(site, { forceLatency = false } = {}) {
+  async summarizeSite(site, { forceLatency = false, forceLive = false } = {}) {
+    if (!forceLive) {
+      if (hasCachedMonitorSummary(site)) {
+        return cachedMonitorSummary(site);
+      }
+
+      return normalizeSite(site, {
+        lastSyncError: 'No cached site summary has been collected yet.',
+      });
+    }
+
     let workingSite = site;
     if (site.fortigate_ip && (forceLatency || shouldRefreshLatency(site))) {
       workingSite = await siteStore.updateLatencyCache(site.id, await runPing(parseFortiGateTarget(site.fortigate_ip).host));

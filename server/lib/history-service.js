@@ -12,19 +12,19 @@ const siteIsNonResponsive = (summary) =>
   summary.apiReachable === false ||
   summary.latencyPacketLoss === 100;
 
-export const createHistoryService = ({ siteStore, fortiGateClient, alertService, historyStore, siteMonitorNotificationService, pollingIntervalMs = defaultPollingIntervalMs }) => {
+export const createHistoryService = ({ siteStore, fortiGateClient, alertService, historyStore, siteMonitorNotificationService, inventoryCacheService, pollingIntervalMs = defaultPollingIntervalMs }) => {
   let intervalHandle = null;
   let warmupHandle = null;
 
   const collectSite = async (site) => {
-    let summary = await fortiGateClient.summarizeSite(site);
+    let summary = await fortiGateClient.summarizeSite(site, { forceLive: true });
     let confirmedDown = false;
 
     if (siteIsNonResponsive(summary)) {
       confirmedDown = true;
       for (let attempt = 0; attempt < monitorRetryCount; attempt += 1) {
         await wait(monitorRetryDelayMs);
-        summary = await fortiGateClient.summarizeSite(site, { forceLatency: true });
+        summary = await fortiGateClient.summarizeSite(site, { forceLatency: true, forceLive: true });
         if (!siteIsNonResponsive(summary)) {
           confirmedDown = false;
           break;
@@ -33,6 +33,12 @@ export const createHistoryService = ({ siteStore, fortiGateClient, alertService,
     }
 
     await historyStore.recordSiteMetric(summary);
+    await siteStore.updateMonitorState(site.id, summary);
+    if (!confirmedDown) {
+      await inventoryCacheService?.refreshSiteInventories(site, fortiGateClient, { force: true }).catch((error) => {
+        console.error(`[inventory-cache] Scheduled refresh failed for site ${site.id}:`, error);
+      });
+    }
     await siteMonitorNotificationService?.evaluateSite(summary, { confirmedDown }).catch((error) => {
       console.error(`[notifications] Failed to evaluate site monitor notification for ${site.id}:`, error);
     });

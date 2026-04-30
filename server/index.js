@@ -13,6 +13,7 @@ import { createHistoryService } from './lib/history-service.js';
 import { createHistoryStore } from './lib/history-store.js';
 import { createHostScanService } from './lib/host-scan-service.js';
 import { createInventoryService } from './lib/inventory-service.js';
+import { createInventoryCacheService } from './lib/inventory-cache-service.js';
 import { createEmailService } from './lib/email-service.js';
 import { createSiteMonitorNotificationService } from './lib/site-monitor-notification-service.js';
 import { createSiteConfigArchiveService } from './lib/site-config-archive-service.js';
@@ -66,11 +67,12 @@ const start = async () => {
   const vendorLookupService = createVendorLookupService({ siteStore });
   const fortiGateClient = createFortiGateClient({ siteStore, vendorLookupService });
   const siteConfigArchiveService = createSiteConfigArchiveService({ siteStore });
-  const inventoryService = createInventoryService({ siteStore, fortiGateClient });
-  const alertService = createAlertService({ siteStore, fortiGateClient });
+  const inventoryCacheService = createInventoryCacheService({ siteStore });
+  const inventoryService = createInventoryService({ siteStore, fortiGateClient, inventoryCacheService });
+  const alertService = createAlertService({ siteStore, fortiGateClient, inventoryCacheService });
   const emailService = createEmailService({ config: serverConfig.email });
   const siteMonitorNotificationService = createSiteMonitorNotificationService({ emailService });
-  const historyService = createHistoryService({ siteStore, fortiGateClient, alertService, historyStore, siteMonitorNotificationService });
+  const historyService = createHistoryService({ siteStore, fortiGateClient, alertService, historyStore, siteMonitorNotificationService, inventoryCacheService });
   const hostScanService = createHostScanService();
   const topologyService = createTopologyService({ siteStore, fortiGateClient });
   const deviceActionService = createDeviceActionService({ siteStore, fortiGateClient, historyStore });
@@ -267,9 +269,9 @@ const start = async () => {
   app.use(apiPath('/firmware'), createFirmwareRouter({ inventoryService }));
   app.use(apiPath('/fortigates'), createFortiGatesRouter({ siteStore, fortiGateClient, hostScanService }));
   app.use(apiPath('/topology'), createTopologyRouter({ topologyService }));
-  app.use(apiPath('/switches'), createSwitchesRouter({ siteStore, fortiGateClient, deviceActionService }));
-  app.use(apiPath('/aps'), createApsRouter({ siteStore, fortiGateClient, deviceActionService }));
-  app.use(apiPath('/clients'), createClientsRouter({ siteStore, fortiGateClient }));
+  app.use(apiPath('/switches'), createSwitchesRouter({ siteStore, fortiGateClient, deviceActionService, inventoryCacheService }));
+  app.use(apiPath('/aps'), createApsRouter({ siteStore, fortiGateClient, deviceActionService, inventoryCacheService }));
+  app.use(apiPath('/clients'), createClientsRouter({ siteStore, fortiGateClient, inventoryCacheService }));
   app.use(apiPath('/users'), createUsersRouter({ authStore, siteStore }));
 
   app.use(

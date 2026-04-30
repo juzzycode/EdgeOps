@@ -14,6 +14,7 @@ const longTextColumns = [
   'last_sync_error',
   'message',
   'metadata_json',
+  'monitor_last_sync_error',
   'open_ports_json',
   'payload_json',
   'password_hash',

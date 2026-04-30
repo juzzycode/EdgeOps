@@ -64,11 +64,29 @@ const createAlert = ({
   context,
 });
 
-const buildSiteAlerts = async ({ site, fortiGateClient }) => {
+const summaryIsDown = (summary) =>
+  summary.status === 'offline' ||
+  summary.wanStatus === 'offline' ||
+  summary.apiReachable === false ||
+  summary.latencyPacketLoss === 100;
+
+const buildSiteAlerts = async ({ site, fortiGateClient, inventoryCacheService }) => {
   const summary = await fortiGateClient.summarizeSite(site);
+  const loadSwitches = () =>
+    inventoryCacheService
+      ? inventoryCacheService.listCachedOrRefresh(site, 'switches', () => fortiGateClient.listManagedSwitchesForSite(site), {
+          logLabel: 'alerts',
+        })
+      : fortiGateClient.listManagedSwitchesForSite(site);
+  const loadAccessPoints = () =>
+    inventoryCacheService
+      ? inventoryCacheService.listCachedOrRefresh(site, 'accessPoints', () => fortiGateClient.listManagedAccessPointsForSite(site), {
+          logLabel: 'alerts',
+        })
+      : fortiGateClient.listManagedAccessPointsForSite(site);
   const [switchesResult, apsResult] = await Promise.allSettled([
-    fortiGateClient.listManagedSwitchesForSite(site),
-    fortiGateClient.listManagedAccessPointsForSite(site),
+    loadSwitches(),
+    loadAccessPoints(),
   ]);
 
   const switches = switchesResult.status === 'fulfilled' ? switchesResult.value : [];
@@ -187,11 +205,17 @@ const buildSiteAlerts = async ({ site, fortiGateClient }) => {
     }
   }
 
-  const detailedSwitchResults = await Promise.allSettled(
-    switches
-      .filter((device) => device.status !== 'offline')
-      .map((device) => fortiGateClient.getManagedSwitchDetailForSite(site, device.id)),
-  );
+  const detailedSwitchResults = summaryIsDown(summary)
+    ? []
+    : inventoryCacheService
+      ? switches
+          .filter((device) => device.status !== 'offline')
+          .map((device) => ({ status: 'fulfilled', value: device }))
+      : await Promise.allSettled(
+          switches
+            .filter((device) => device.status !== 'offline')
+            .map((device) => fortiGateClient.getManagedSwitchDetailForSite(site, device.id)),
+        );
 
   for (const result of detailedSwitchResults) {
     if (result.status !== 'fulfilled' || !result.value) continue;
@@ -296,7 +320,7 @@ const buildSiteAlerts = async ({ site, fortiGateClient }) => {
   return alerts;
 };
 
-export const createAlertService = ({ siteStore, fortiGateClient }) => ({
+export const createAlertService = ({ siteStore, fortiGateClient, inventoryCacheService }) => ({
   async listAlerts({ siteId, severity, hours } = {}) {
     const sites = siteId ? [await siteStore.getSiteById(siteId)].filter(Boolean) : await siteStore.listSites();
     const results = await Promise.allSettled(
@@ -304,6 +328,7 @@ export const createAlertService = ({ siteStore, fortiGateClient }) => ({
         buildSiteAlerts({
           site,
           fortiGateClient,
+          inventoryCacheService,
         }),
       ),
     );
