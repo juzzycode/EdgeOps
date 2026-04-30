@@ -1,12 +1,41 @@
-const defaultPollingIntervalMs = 15 * 60 * 1000;
+import { serverConfig } from '../config.js';
 
-export const createHistoryService = ({ siteStore, fortiGateClient, alertService, historyStore, pollingIntervalMs = defaultPollingIntervalMs }) => {
+const defaultPollingIntervalMs = serverConfig.historyPollingIntervalMs;
+const monitorRetryCount = 2;
+const monitorRetryDelayMs = 10_000;
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const siteIsNonResponsive = (summary) =>
+  summary.status === 'offline' ||
+  summary.wanStatus === 'offline' ||
+  summary.apiReachable === false ||
+  summary.latencyPacketLoss === 100;
+
+export const createHistoryService = ({ siteStore, fortiGateClient, alertService, historyStore, siteMonitorNotificationService, pollingIntervalMs = defaultPollingIntervalMs }) => {
   let intervalHandle = null;
   let warmupHandle = null;
 
   const collectSite = async (site) => {
-    const summary = await fortiGateClient.summarizeSite(site);
+    let summary = await fortiGateClient.summarizeSite(site);
+    let confirmedDown = false;
+
+    if (siteIsNonResponsive(summary)) {
+      confirmedDown = true;
+      for (let attempt = 0; attempt < monitorRetryCount; attempt += 1) {
+        await wait(monitorRetryDelayMs);
+        summary = await fortiGateClient.summarizeSite(site, { forceLatency: true });
+        if (!siteIsNonResponsive(summary)) {
+          confirmedDown = false;
+          break;
+        }
+      }
+    }
+
     await historyStore.recordSiteMetric(summary);
+    await siteMonitorNotificationService?.evaluateSite(summary, { confirmedDown }).catch((error) => {
+      console.error(`[notifications] Failed to evaluate site monitor notification for ${site.id}:`, error);
+    });
 
     const alerts = await alertService.listAlerts({ siteId: site.id });
     await historyStore.recordAlerts(alerts);

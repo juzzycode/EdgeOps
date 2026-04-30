@@ -23,6 +23,8 @@ interface SiteFormState {
   adminUsername: string;
   adminPassword: string;
   configBackupsToKeep: '0' | '10' | '30' | '90' | 'unlimited';
+  siteAlertEmailEnabled: boolean;
+  siteAlertEmailRecipients: string;
 }
 
 const defaultForm: SiteFormState = {
@@ -37,6 +39,8 @@ const defaultForm: SiteFormState = {
   adminUsername: '',
   adminPassword: '',
   configBackupsToKeep: '30',
+  siteAlertEmailEnabled: false,
+  siteAlertEmailRecipients: '',
 };
 
 export const SitesPage = () => {
@@ -68,7 +72,7 @@ export const SitesPage = () => {
     refreshSites();
   }, []);
 
-  const handleChange = (field: keyof SiteFormState, value: string) => {
+  const handleChange = (field: keyof SiteFormState, value: string | boolean) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -106,6 +110,8 @@ export const SitesPage = () => {
       fortigateVdom: site.fortigateVdom || 'root',
       adminUsername: '',
       adminPassword: '',
+      siteAlertEmailEnabled: Boolean(site.siteAlertEmailEnabled),
+      siteAlertEmailRecipients: site.siteAlertEmailRecipients || '',
       configBackupsToKeep:
         site.configBackupsToKeep === null || site.configBackupsToKeep === undefined
           ? 'unlimited'
@@ -238,6 +244,26 @@ export const SitesPage = () => {
                 <p className="mt-2 text-sm text-muted">Controls daily FortiGate config backups and how many archived snapshots are retained for this site.</p>
               </div>
             </Field>
+            <Field className="lg:col-span-2" label="Site Alert Email">
+              <div className="space-y-3 rounded-2xl border border-border bg-soft px-4 py-3">
+                <label className="flex items-center justify-between gap-4 text-sm text-text">
+                  <span>Email if this site fails the scheduled healthcheck and 2 retries</span>
+                  <input
+                    checked={form.siteAlertEmailEnabled}
+                    className="h-5 w-5 rounded border-border bg-soft text-accent focus:ring-accent"
+                    onChange={(event) => handleChange('siteAlertEmailEnabled', event.target.checked)}
+                    type="checkbox"
+                  />
+                </label>
+                <textarea
+                  className={`${inputClassName} min-h-24 resize-y`}
+                  onChange={(event) => handleChange('siteAlertEmailRecipients', event.target.value)}
+                  placeholder="noc@example.com, admin@example.com"
+                  value={form.siteAlertEmailRecipients}
+                />
+                <p className="text-sm text-muted">Separate multiple recipients with commas, semicolons, or new lines. Delivery is capped at 4 emails every 30 minutes across all sites.</p>
+              </div>
+            </Field>
             <div className="lg:col-span-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-soft px-4 py-3">
               <p className="text-sm text-muted">
                 A shorthand site id such as <span className="font-semibold text-text">site-den</span> is generated automatically from the site name.
@@ -324,6 +350,7 @@ export const SitesPage = () => {
                           : String(site.configBackupsToKeep)
                     }
                   />
+                  <DetailRow label="Alert Email" value={site.siteAlertEmailEnabled ? 'Enabled' : 'Disabled'} />
                 </div>
 
                 {site.lastSyncError ? (
@@ -399,6 +426,26 @@ export const SitesPage = () => {
                   <option value="unlimited">Unlimited</option>
                 </select>
                 <p className="mt-2 text-sm text-muted">Set how many daily snapshots to retain. Choosing 0 disables config backup and removes archived snapshots for this site.</p>
+              </div>
+            </Field>
+            <Field label="Site Alert Email">
+              <div className="space-y-3 rounded-2xl border border-border bg-soft px-4 py-3">
+                <label className="flex items-center justify-between gap-4 text-sm text-text">
+                  <span>Email if this site fails the scheduled healthcheck and 2 retries</span>
+                  <input
+                    checked={form.siteAlertEmailEnabled}
+                    className="h-5 w-5 rounded border-border bg-soft text-accent focus:ring-accent"
+                    onChange={(event) => handleChange('siteAlertEmailEnabled', event.target.checked)}
+                    type="checkbox"
+                  />
+                </label>
+                <textarea
+                  className={`${inputClassName} min-h-24 resize-y`}
+                  onChange={(event) => handleChange('siteAlertEmailRecipients', event.target.value)}
+                  placeholder="noc@example.com, admin@example.com"
+                  value={form.siteAlertEmailRecipients}
+                />
+                <p className="text-sm text-muted">Send one down email after the healthcheck and both retries fail, then one recovery email when the site responds again.</p>
               </div>
             </Field>
             <div className="rounded-2xl bg-soft px-4 py-3 text-sm text-muted">

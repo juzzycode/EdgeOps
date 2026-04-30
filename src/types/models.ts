@@ -82,6 +82,8 @@ export interface Site {
   latencyError?: string | null;
   configArchiveEnabled?: boolean;
   configBackupsToKeep?: number | null;
+  siteAlertEmailEnabled?: boolean;
+  siteAlertEmailRecipients?: string;
   source?: 'live';
 }
 

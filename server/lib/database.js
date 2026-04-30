@@ -19,6 +19,7 @@ const longTextColumns = [
   'password_hash',
   'raw_output',
   'result_json',
+  'site_alert_email_recipients',
   'summary',
   'value',
 ];

@@ -1214,6 +1214,8 @@ const normalizeSite = (site, overrides = {}) => ({
     site.config_backups_to_keep === undefined || site.config_backups_to_keep === null
       ? null
       : Number(site.config_backups_to_keep),
+  siteAlertEmailEnabled: Boolean(site.site_alert_email_enabled),
+  siteAlertEmailRecipients: site.site_alert_email_recipients || '',
   fortigateVersion: null,
   fortigateSerial: null,
   addressObjectCount: 0,
@@ -1413,9 +1415,9 @@ const mapFortiGateDevice = (site, summary, interfaces = [], details = {}) => ({
 });
 
 export const createFortiGateClient = ({ siteStore, vendorLookupService }) => ({
-  async summarizeSite(site) {
+  async summarizeSite(site, { forceLatency = false } = {}) {
     let workingSite = site;
-    if (site.fortigate_ip && shouldRefreshLatency(site)) {
+    if (site.fortigate_ip && (forceLatency || shouldRefreshLatency(site))) {
       workingSite = await siteStore.updateLatencyCache(site.id, await runPing(parseFortiGateTarget(site.fortigate_ip).host));
     }
 

@@ -42,6 +42,8 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
               site.config_backups_to_keep === undefined || site.config_backups_to_keep === null
                 ? null
                 : Number(site.config_backups_to_keep),
+            siteAlertEmailEnabled: Boolean(site.site_alert_email_enabled),
+            siteAlertEmailRecipients: site.site_alert_email_recipients || '',
             source: 'live',
           };
         }),
@@ -51,7 +53,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
   });
 
   router.post('/', requireSuperAdmin, async (request, response) => {
-    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, fortigateVdom, adminUsername, adminPassword, configBackupsToKeep } = request.body ?? {};
+    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, fortigateVdom, adminUsername, adminPassword, configBackupsToKeep, siteAlertEmailEnabled, siteAlertEmailRecipients } = request.body ?? {};
 
     if (!name || !address || !timezone || !region) {
       response.status(400).json({ error: 'name, address, timezone, and region are required' });
@@ -70,6 +72,8 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
       adminUsername,
       adminPassword,
       configBackupsToKeep,
+      siteAlertEmailEnabled,
+      siteAlertEmailRecipients,
     });
 
     response.status(201).json({ site: await fortiGateClient.summarizeSite(site) });
@@ -213,7 +217,7 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
     if (!ensureSiteAccess(request, response, request.params.id)) {
       return;
     }
-    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, fortigateVdom, adminUsername, adminPassword, configBackupsToKeep } = request.body ?? {};
+    const { name, address, timezone, region, fortigateName, fortigateIp, fortigateApiKey, fortigateVdom, adminUsername, adminPassword, configBackupsToKeep, siteAlertEmailEnabled, siteAlertEmailRecipients } = request.body ?? {};
     const existing = await siteStore.getSiteById(request.params.id);
 
     if (!existing) {
@@ -238,6 +242,8 @@ export const createSitesRouter = ({ siteStore, fortiGateClient, siteConfigArchiv
       adminUsername,
       adminPassword,
       configBackupsToKeep,
+      siteAlertEmailEnabled,
+      siteAlertEmailRecipients,
     });
 
     await siteConfigArchiveService.enforceRetention(request.params.id);

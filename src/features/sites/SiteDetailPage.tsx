@@ -193,6 +193,7 @@ export const SiteDetailPage = () => {
               }
             />
             <DetailRow label="Address Objects" value={String(site.addressObjectCount ?? 0)} />
+            <DetailRow label="Alert Email" value={site.siteAlertEmailEnabled ? 'Enabled' : 'Disabled'} />
           </div>
         </Panel>
 

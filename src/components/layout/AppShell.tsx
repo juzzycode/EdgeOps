@@ -82,8 +82,8 @@ export const AppShell = ({ children }: PropsWithChildren) => {
 
   const handleNotificationSettings = () => {
     setProfileMenuOpen(false);
-    navigate('/settings');
-    setProfileMessage('Notification preferences are available under Settings.');
+    navigate('/sites');
+    setProfileMessage('Site alert email is configured per site from Site Management.');
   };
 
   const handleSignOut = async () => {
@@ -231,8 +231,8 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                         />
                         <MenuAction
                           icon={Bell}
-                          label="Notification Settings"
-                          description="Review alert delivery and local preference controls."
+                          label="Site Alert Email"
+                          description="Configure outage email recipients per site."
                           onClick={handleNotificationSettings}
                         />
                         <MenuAction

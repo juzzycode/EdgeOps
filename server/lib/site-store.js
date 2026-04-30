@@ -27,6 +27,13 @@ const normalizeConfigBackupsToKeep = (value) => {
   return Math.trunc(numeric);
 };
 
+const normalizeAlertEmailRecipients = (value) =>
+  String(value || '')
+    .split(/[,\n;]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join(', ');
+
 export const createSiteStore = ({ db }) => ({
   async init() {
     await db.exec(`
@@ -61,6 +68,8 @@ export const createSiteStore = ({ db }) => ({
       ['config_archive_enabled', 'ALTER TABLE sites ADD COLUMN config_archive_enabled INTEGER NOT NULL DEFAULT 1'],
       ['fortigate_vdom', `ALTER TABLE sites ADD COLUMN fortigate_vdom TEXT NOT NULL DEFAULT 'root'`],
       ['config_backups_to_keep', 'ALTER TABLE sites ADD COLUMN config_backups_to_keep INTEGER'],
+      ['site_alert_email_enabled', 'ALTER TABLE sites ADD COLUMN site_alert_email_enabled INTEGER NOT NULL DEFAULT 0'],
+      ['site_alert_email_recipients', "ALTER TABLE sites ADD COLUMN site_alert_email_recipients TEXT NOT NULL DEFAULT ''"],
     ];
 
     for (const [columnName, sql] of migrations) {
@@ -195,6 +204,8 @@ export const createSiteStore = ({ db }) => ({
       admin_password: input.adminPassword ?? '',
       config_archive_enabled: configBackupsToKeep === 0 ? 0 : 1,
       config_backups_to_keep: configBackupsToKeep,
+      site_alert_email_enabled: input.siteAlertEmailEnabled ? 1 : 0,
+      site_alert_email_recipients: normalizeAlertEmailRecipients(input.siteAlertEmailRecipients),
       created_at: nowIso(),
       updated_at: nowIso(),
     };
@@ -203,9 +214,10 @@ export const createSiteStore = ({ db }) => ({
       `
         INSERT INTO sites (
           id, shorthand_id, name, address, timezone, region, fortigate_name, fortigate_ip,
-          fortigate_api_key, fortigate_vdom, admin_username, admin_password, config_archive_enabled, config_backups_to_keep, is_demo, created_at, updated_at
+          fortigate_api_key, fortigate_vdom, admin_username, admin_password, config_archive_enabled, config_backups_to_keep,
+          site_alert_email_enabled, site_alert_email_recipients, is_demo, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
       `,
       row.id,
       row.shorthand_id,
@@ -221,6 +233,8 @@ export const createSiteStore = ({ db }) => ({
       row.admin_password,
       row.config_archive_enabled,
       row.config_backups_to_keep,
+      row.site_alert_email_enabled,
+      row.site_alert_email_recipients,
       row.created_at,
       row.updated_at,
     );
@@ -250,6 +264,12 @@ export const createSiteStore = ({ db }) => ({
       admin_password: input.adminPassword ?? current.admin_password,
       config_archive_enabled: configBackupsToKeep === 0 ? 0 : 1,
       config_backups_to_keep: configBackupsToKeep,
+      site_alert_email_enabled:
+        input.siteAlertEmailEnabled === undefined ? current.site_alert_email_enabled : input.siteAlertEmailEnabled ? 1 : 0,
+      site_alert_email_recipients:
+        input.siteAlertEmailRecipients === undefined
+          ? current.site_alert_email_recipients
+          : normalizeAlertEmailRecipients(input.siteAlertEmailRecipients),
       updated_at: nowIso(),
     };
 
@@ -257,7 +277,8 @@ export const createSiteStore = ({ db }) => ({
       `
         UPDATE sites
         SET name = ?, address = ?, timezone = ?, region = ?, fortigate_name = ?, fortigate_ip = ?,
-            fortigate_api_key = ?, fortigate_vdom = ?, admin_username = ?, admin_password = ?, config_archive_enabled = ?, config_backups_to_keep = ?, updated_at = ?
+            fortigate_api_key = ?, fortigate_vdom = ?, admin_username = ?, admin_password = ?, config_archive_enabled = ?,
+            config_backups_to_keep = ?, site_alert_email_enabled = ?, site_alert_email_recipients = ?, updated_at = ?
         WHERE id = ?
       `,
       row.name,
@@ -272,6 +293,8 @@ export const createSiteStore = ({ db }) => ({
       row.admin_password,
       row.config_archive_enabled,
       row.config_backups_to_keep,
+      row.site_alert_email_enabled,
+      row.site_alert_email_recipients,
       row.updated_at,
       id,
     );
