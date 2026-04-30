@@ -51,9 +51,13 @@ export const createEmailService = ({ config }) => {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
+      const hint =
+        response.status === 401
+          ? ' Check MAILGUN_API, MAILGUN_DOMAIN, and whether the account needs MAILGUN_API_BASE_URL=https://api.eu.mailgun.net.'
+          : '';
       return {
         sent: false,
-        reason: `Mailgun request failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`,
+        reason: `Mailgun request failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}.${hint}`,
       };
     }
 
