@@ -9,10 +9,14 @@ const splitRecipients = (value) =>
 export const createEmailService = ({ config }) => {
   let transport = null;
 
-  const isConfigured = () => Boolean(config.host && config.from);
+  const mode = config.mode === 'mailgun' ? 'mailgun' : 'smtp';
+
+  const isSmtpConfigured = () => Boolean(config.host && config.from);
+  const isMailgunConfigured = () => Boolean(config.mailgun?.apiKey && config.mailgun?.domain && config.mailgun?.from);
+  const isConfigured = () => (mode === 'mailgun' ? isMailgunConfigured() : isSmtpConfigured());
 
   const getTransport = () => {
-    if (!isConfigured()) return null;
+    if (!isSmtpConfigured()) return null;
     if (!transport) {
       transport = nodemailer.createTransport({
         host: config.host,
@@ -25,6 +29,37 @@ export const createEmailService = ({ config }) => {
     return transport;
   };
 
+  const sendMailgun = async ({ recipients, subject, text }) => {
+    if (!isMailgunConfigured()) {
+      return { sent: false, reason: 'Mailgun API key, domain, or from address are not configured' };
+    }
+
+    const body = new URLSearchParams();
+    body.set('from', config.mailgun.from);
+    body.set('to', recipients.join(','));
+    body.set('subject', subject);
+    body.set('text', text);
+
+    const response = await fetch(`${config.mailgun.apiBaseUrl}/v3/${encodeURIComponent(config.mailgun.domain)}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`api:${config.mailgun.apiKey}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      return {
+        sent: false,
+        reason: `Mailgun request failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`,
+      };
+    }
+
+    return { sent: true };
+  };
+
   return {
     isConfigured,
 
@@ -33,6 +68,10 @@ export const createEmailService = ({ config }) => {
     async sendMail({ to, subject, text }) {
       const recipients = Array.isArray(to) ? to : splitRecipients(to);
       if (!recipients.length) return { sent: false, reason: 'No recipients configured' };
+
+      if (mode === 'mailgun') {
+        return sendMailgun({ recipients, subject, text });
+      }
 
       const activeTransport = getTransport();
       if (!activeTransport) return { sent: false, reason: 'SMTP host/from are not configured' };
